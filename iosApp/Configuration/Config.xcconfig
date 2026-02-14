@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=MobileChineseChessMultiplayer
+PRODUCT_BUNDLE_IDENTIFIER=com.charmflex.app.mobile_chinese_chess_multiplayer.MobileChineseChessMultiplayer$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
