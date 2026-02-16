@@ -1,6 +1,7 @@
 package com.charmflex.app.mobile_chinese_chess_multiplayer.core.navigation
 
 sealed class Route(val route: String) {
+    data object Login : Route("login")
     data object Home : Route("home")
     data object Battle : Route("battle")
     data object Social : Route("social")

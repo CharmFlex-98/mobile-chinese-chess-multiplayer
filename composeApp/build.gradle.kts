@@ -51,6 +51,11 @@ kotlin {
             implementation(libs.ktor.client.websockets)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.multiplatform.settings.no.arg)
+            implementation(libs.ktor.client.logging)
+            implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.3.0"))
+            implementation("io.github.jan-tennert.supabase:postgrest-kt")
+            implementation("io.github.jan-tennert.supabase:auth-kt")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -63,7 +68,7 @@ android {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.charmflex.app.mobile_chinese_chess_multiplayer"
+        applicationId = "com.charmflex.app.xiangqix"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

@@ -23,6 +23,8 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.common.Bo
 import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.gameroom.GameRoomScreen
 import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.gameroom.GameRoomViewModel
 import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.gameroom.components.AiDifficultySelector
+import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.login.LoginScreen
+import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.login.LoginViewModel
 import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.mainmenu.MainMenuScreen
 import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.mainmenu.MainMenuViewModel
 import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.settings.SettingsScreen
@@ -31,9 +33,43 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.social.So
 @Composable
 fun App() {
     XiangqiMasterTheme {
-        var currentRoute by remember { mutableStateOf(Route.Home.route) }
+        var currentRoute by remember { mutableStateOf(Route.Login.route) }
+        var isRestoringSession by remember { mutableStateOf(true) }
 
         val deps = remember { AppModule.instance }
+
+        // Try to restore session on launch
+        LaunchedEffect(Unit) {
+            val restored = deps.userRepository.restoreSession()
+            if (restored) {
+                currentRoute = Route.Home.route
+            }
+            isRestoringSession = false
+        }
+
+        // Show loading while restoring session
+        if (isRestoringSession) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(BackgroundDark),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = GoldPrimary)
+            }
+            return@XiangqiMasterTheme
+        }
+
+        // Login screen
+        if (currentRoute == Route.Login.route) {
+            val loginViewModel: LoginViewModel = viewModel {
+                LoginViewModel(userRepository = deps.userRepository)
+            }
+            LoginScreen(
+                viewModel = loginViewModel,
+                onLoginSuccess = { currentRoute = Route.Home.route }
+            )
+            return@XiangqiMasterTheme
+        }
+
         val gameViewModel: GameRoomViewModel = viewModel {
             GameRoomViewModel(gameRepository = deps.gameRepository)
         }
@@ -102,7 +138,13 @@ fun App() {
                         }
                     )
                     Route.Social.route -> SocialScreen()
-                    Route.Settings.route -> SettingsScreen()
+                    Route.Settings.route -> SettingsScreen(
+                        isGuest = deps.userRepository.isGuest,
+                        onSignOut = {
+                            deps.userRepository.logout()
+                            currentRoute = Route.Login.route
+                        }
+                    )
                 }
             }
         }
@@ -128,7 +170,7 @@ private fun AiSelectionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onBack) {
-                    Text("‹ Back", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                    Text("< Back", color = GoldPrimary, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("AI Practice", style = AppTypography.titleLarge, color = Color.White)

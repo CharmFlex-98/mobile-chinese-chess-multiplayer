@@ -21,7 +21,8 @@ private val json = Json {
 @Component
 class GameWebSocketHandler(
     private val gameService: GameService,
-    private val botService: BotService
+    private val botService: BotService,
+    private val jwtValidator: com.charmflex.xiangqi.server.service.JwtValidator
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(GameWebSocketHandler::class.java)
@@ -60,13 +61,35 @@ class GameWebSocketHandler(
 
         when {
             token != null -> {
-                val player = gameService.registerPlayerByToken(session.id, token)
-                if (player != null) {
-                    log.info("[WS] Linked session {} to existing player: id={} name={}", session.id, player.id.take(8), player.name)
+                if (jwtValidator.isJwtToken(token)) {
+                    // JWT token from Supabase auth - validate and link
+                    val userId = jwtValidator.validateAndGetUserId(token)
+                    if (userId != null) {
+                        val player = gameService.getPlayerById(userId)
+                        if (player != null) {
+                            gameService.registerPlayerByToken(session.id, userId)
+                            log.info("[WS] JWT auth: linked session {} to player id={} name={}", session.id, player.id.take(8), player.name)
+                        } else {
+                            val fallbackName = name ?: "Player_${userId.take(6)}"
+                            log.warn("[WS] JWT auth: player {} not found, creating: {}", userId.take(8), fallbackName)
+                            val newPlayer = gameService.getOrCreatePlayer(userId, fallbackName)
+                            gameService.registerPlayerByToken(session.id, newPlayer.id)
+                        }
+                    } else {
+                        val fallbackName = name ?: "Guest_${session.id.take(6)}"
+                        log.warn("[WS] JWT validation failed, registering as: {}", fallbackName)
+                        gameService.registerPlayer(session.id, fallbackName)
+                    }
                 } else {
-                    val fallbackName = name ?: "Guest_${session.id.take(6)}"
-                    log.warn("[WS] Token {} not found, registering as: {}", token.take(8), fallbackName)
-                    gameService.registerPlayer(session.id, fallbackName)
+                    // UUID token from guest auth
+                    val player = gameService.registerPlayerByToken(session.id, token)
+                    if (player != null) {
+                        log.info("[WS] Linked session {} to existing player: id={} name={}", session.id, player.id.take(8), player.name)
+                    } else {
+                        val fallbackName = name ?: "Guest_${session.id.take(6)}"
+                        log.warn("[WS] Token {} not found, registering as: {}", token.take(8), fallbackName)
+                        gameService.registerPlayer(session.id, fallbackName)
+                    }
                 }
             }
             name != null -> {

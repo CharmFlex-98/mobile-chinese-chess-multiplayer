@@ -1,5 +1,9 @@
 package com.charmflex.app.mobile_chinese_chess_multiplayer
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.di.AppModule
 
-fun MainViewController() = ComposeUIViewController { App() }
+fun MainViewController() = run {
+    AppModule.initialize()
+    ComposeUIViewController { App() }
+}

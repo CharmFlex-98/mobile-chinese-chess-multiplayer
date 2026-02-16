@@ -1,5 +1,6 @@
 package com.charmflex.app.mobile_chinese_chess_multiplayer.presentation.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,7 +18,10 @@ import androidx.compose.ui.unit.sp
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.theme.*
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    isGuest: Boolean = false,
+    onSignOut: () -> Unit = {}
+) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Header
         Row(
@@ -26,7 +30,7 @@ fun SettingsScreen() {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("⚙", fontSize = 20.sp, color = GoldPrimary)
+            Text("*", fontSize = 20.sp, color = GoldPrimary)
             Spacer(Modifier.width(8.dp))
             Text("SETTINGS", style = AppTypography.titleMedium, color = Color.White, fontWeight = FontWeight.Black)
         }
@@ -55,13 +59,24 @@ fun SettingsScreen() {
 
             item { Spacer(Modifier.height(24.dp)) }
             item {
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
-                ) {
-                    Text("Sign Out", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                if (isGuest) {
+                    Button(
+                        onClick = onSignOut,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Sign In", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+                    ) {
+                        Text("Sign Out", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -122,7 +137,7 @@ private fun SettingsRow(label: String, value: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(value, style = AppTypography.bodyMedium, color = TextSlate400)
             Spacer(Modifier.width(8.dp))
-            Text("›", color = TextSlate600, fontSize = 18.sp)
+            Text(">", color = TextSlate600, fontSize = 18.sp)
         }
     }
 }
