@@ -22,6 +22,18 @@ class GameService {
         return player
     }
 
+    fun getOrCreatePlayer(id: String, name: String): Player {
+        val existing = players[id]
+        if (existing != null) {
+            log.info("[SVC] getOrCreatePlayer: found existing id={} name={}", id.take(8), existing.name)
+            return existing
+        }
+        val player = Player(id = id, name = name)
+        players[player.id] = player
+        log.info("[SVC] getOrCreatePlayer: created new id={} name={} (total={})", id.take(8), name, players.size)
+        return player
+    }
+
     fun getPlayerById(playerId: String): Player? {
         val p = players[playerId]
         if (p == null) log.warn("[SVC] getPlayerById: {} NOT FOUND (known players={})", playerId.take(8), players.size)

@@ -53,6 +53,26 @@ fun BattleLobbyScreen(
             isConnected = state.isConnected,
             onRefresh = { viewModel.loadActiveRooms() }
         )
+
+        // Guest restriction banner
+        if (state.isGuest) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFFF9800).copy(alpha = 0.15f))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("!", fontSize = 16.sp, color = Color(0xFFFF9800), fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "Sign in to play multiplayer games. Guests can only spectate.",
+                    style = AppTypography.bodySmall,
+                    color = Color(0xFFFF9800)
+                )
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 100.dp)

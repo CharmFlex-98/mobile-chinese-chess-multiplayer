@@ -4,6 +4,9 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.data.remote.dto.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -39,6 +42,18 @@ class ApiClient(
             contentType(ContentType.Application.Json)
             setBody(AuthRequest(username, password))
         }.body()
+    }
+
+    suspend fun loginWithSupabase(supabaseToken: String, displayName: String): AuthResponse {
+        println("[API] POST $baseUrl/api/auth/supabase  name=$displayName")
+        val response = httpClient.post("$baseUrl/api/auth/supabase") {
+            contentType(ContentType.Application.Json)
+            header(HttpHeaders.Authorization, "Bearer $supabaseToken")
+            setBody(mapOf("displayName" to displayName))
+        }
+        val bodyText = response.bodyAsText()
+        println("[API] Supabase login response (${response.status}): $bodyText")
+        return response.body()
     }
 
     suspend fun loginAsGuest(name: String): AuthResponse {
@@ -97,6 +112,18 @@ class ApiClient(
     companion object {
         fun createHttpClient(): HttpClient {
             return HttpClient {
+                install(Logging) {
+                    logger = object : Logger {
+                        override fun log(message: String) {
+                            println("==========")
+                            println("HTTP::$message")
+                            println("==========")
+                        }
+                    }
+                    level = LogLevel.ALL
+                }
+
+
                 install(ContentNegotiation) {
                     json(Json {
                         ignoreUnknownKeys = true

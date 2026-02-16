@@ -22,6 +22,7 @@ data class BattleLobbyState(
     val matchFoundPlayerColor: String? = null,
     val matchFoundIsCreator: Boolean = false,
     val isConnected: Boolean = false,
+    val isGuest: Boolean = false,
     val error: String? = null
 )
 
@@ -44,6 +45,7 @@ class BattleLobbyViewModel(
 
     init {
         observeConnection()
+        observeAuthState()
         loadActiveRooms()
     }
 
@@ -56,23 +58,22 @@ class BattleLobbyViewModel(
         }
     }
 
+    private fun observeAuthState() {
+        viewModelScope.launch {
+            userRepository.authUser.collect { authUser ->
+                _state.update { it.copy(isGuest = authUser?.isGuest == true) }
+            }
+        }
+    }
+
     fun connectAndSetup() {
         println("[LOBBY] connectAndSetup called, isLoggedIn=${userRepository.isLoggedIn()}")
+        if (!userRepository.isLoggedIn()) {
+            println("[LOBBY] Not logged in, cannot connect")
+            _state.update { it.copy(error = "Not logged in") }
+            return
+        }
         viewModelScope.launch {
-            // Auto-login as guest if not already logged in
-            if (!userRepository.isLoggedIn()) {
-                val guestName = "Player_${(1000..9999).random()}"
-                println("[LOBBY] Auto-login as guest: $guestName")
-                userRepository.loginAsGuest(guestName)
-                    .onFailure { e ->
-                        println("[LOBBY] Auto-login FAILED: ${e.message}")
-                        _state.update { it.copy(error = "Failed to connect: ${e.message}") }
-                        return@launch
-                    }
-                    .onSuccess {
-                        println("[LOBBY] Auto-login OK")
-                    }
-            }
             println("[LOBBY] Connecting WebSocket...")
             gameRepository.connectWebSocket(viewModelScope)
         }
@@ -95,6 +96,10 @@ class BattleLobbyViewModel(
     }
 
     fun startMatchmaking(timeControlSeconds: Int = 600) {
+        if (_state.value.isGuest) {
+            _state.update { it.copy(error = "Sign in to play multiplayer") }
+            return
+        }
         if (_state.value.matchmakingStatus == MatchmakingStatus.SEARCHING) return
         println("[LOBBY] Starting matchmaking (time=${timeControlSeconds}s)")
 
@@ -168,6 +173,10 @@ class BattleLobbyViewModel(
     }
 
     fun joinRoom(roomId: String) {
+        if (_state.value.isGuest) {
+            _state.update { it.copy(error = "Sign in to join rooms") }
+            return
+        }
         println("[LOBBY] Joining room: $roomId")
         viewModelScope.launch {
             gameRepository.joinRoom(roomId)
@@ -190,6 +199,10 @@ class BattleLobbyViewModel(
     }
 
     fun createRoom(name: String, timeControlSeconds: Int = 600, isPrivate: Boolean = false) {
+        if (_state.value.isGuest) {
+            _state.update { it.copy(error = "Sign in to create rooms") }
+            return
+        }
         println("[LOBBY] Creating room: $name")
         viewModelScope.launch {
             gameRepository.createRoom(name, timeControlSeconds, isPrivate)

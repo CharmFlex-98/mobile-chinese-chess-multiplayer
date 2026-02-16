@@ -15,7 +15,8 @@ private val json = Json { encodeDefaults = true }
 @RestController
 @RequestMapping("/api")
 class RoomController(
-    private val gameService: GameService
+    private val gameService: GameService,
+    private val jwtValidator: com.charmflex.xiangqi.server.service.JwtValidator
 ) {
     private val log = LoggerFactory.getLogger(RoomController::class.java)
 
@@ -25,6 +26,37 @@ class RoomController(
         log.info("[API] POST /auth/guest name={}", name)
         val player = gameService.createGuestPlayer(name)
         log.info("[API] Guest created: id={} name={}", player.id.take(8), player.name)
+        return ResponseEntity.ok(mapOf(
+            "token" to player.id,
+            "player" to mapOf(
+                "id" to player.id,
+                "name" to player.name,
+                "rating" to player.rating
+            )
+        ))
+    }
+
+    @PostMapping("/auth/supabase")
+    fun supabaseLogin(
+        @RequestHeader("Authorization", required = false) auth: String?,
+        @RequestBody body: Map<String, String>
+    ): ResponseEntity<Map<String, Any>> {
+        val token = extractToken(auth) ?: run {
+            log.warn("[API] Supabase login: no token provided")
+            return ResponseEntity.badRequest().body(mapOf("error" to "No token provided"))
+        }
+
+        val userId = jwtValidator.validateAndGetUserId(token) ?: run {
+            log.warn("[API] Supabase login: invalid JWT")
+            return ResponseEntity.status(401).body(mapOf("error" to "Invalid token"))
+        }
+
+        val displayName = body["displayName"] ?: "Player"
+        log.info("[API] Supabase login: userId={} name={}", userId.take(8), displayName)
+
+        val player = gameService.getOrCreatePlayer(userId, displayName)
+        log.info("[API] Supabase player: id={} name={}", player.id.take(8), player.name)
+
         return ResponseEntity.ok(mapOf(
             "token" to player.id,
             "player" to mapOf(
