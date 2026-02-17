@@ -9,12 +9,15 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.data.remote.dto.Player
 import com.charmflex.app.mobile_chinese_chess_multiplayer.domain.model.AuthType
 import com.charmflex.app.mobile_chinese_chess_multiplayer.domain.model.AuthUser
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class UserRepository(
     private val apiClient: ApiClient,
@@ -64,14 +67,16 @@ class UserRepository(
     }
 
     private suspend fun registerWithGameServer(authUser: AuthUser) {
-        try {
-            val response = apiClient.loginWithSupabase(authUser.accessToken, authUser.displayName)
-            localDataSource.saveAuthToken(response.token)
-            localDataSource.savePlayer(response.player)
-            apiClient.setAuthToken(response.token)
-            webSocketClient.setAuthToken(response.token)
-        } catch (e: Exception) {
-            println("[USER] Game server registration failed: ${e.message}")
+        withContext(Dispatchers.IO) {
+            try {
+                val response = apiClient.loginWithSupabase(authUser.accessToken, authUser.displayName)
+                localDataSource.saveAuthToken(response.token)
+                localDataSource.savePlayer(response.player)
+                apiClient.setAuthToken(response.token)
+                webSocketClient.setAuthToken(response.token)
+            } catch (e: Throwable) {
+                println("[USER] Game server registration failed: ${e.message}")
+            }
         }
     }
 

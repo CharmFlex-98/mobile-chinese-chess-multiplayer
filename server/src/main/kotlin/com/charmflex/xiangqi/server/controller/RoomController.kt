@@ -8,6 +8,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.Authentication
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 
 private val json = Json { encodeDefaults = true }
@@ -39,16 +41,13 @@ class RoomController(
     @PostMapping("/auth/supabase")
     fun supabaseLogin(
         @RequestHeader("Authorization", required = false) auth: String?,
-        @RequestBody body: Map<String, String>
+        @RequestBody body: Map<String, String>,
+        authentication: Authentication
     ): ResponseEntity<Map<String, Any>> {
-        val token = extractToken(auth) ?: run {
-            log.warn("[API] Supabase login: no token provided")
-            return ResponseEntity.badRequest().body(mapOf("error" to "No token provided"))
-        }
-
-        val userId = jwtValidator.validateAndGetUserId(token) ?: run {
-            log.warn("[API] Supabase login: invalid JWT")
-            return ResponseEntity.status(401).body(mapOf("error" to "Invalid token"))
+        val userId = (authentication.principal as? Jwt)?.subject
+        if (userId == null) {
+            log.warn("[API] Unable to retrieve userId")
+            return ResponseEntity.badRequest().body(mapOf("error" to "cannot extract userId"))
         }
 
         val displayName = body["displayName"] ?: "Player"

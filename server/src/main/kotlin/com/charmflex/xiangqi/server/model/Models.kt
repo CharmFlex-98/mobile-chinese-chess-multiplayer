@@ -52,3 +52,9 @@ data class BotPlayer(
     val minDelayMs: Long,
     val maxDelayMs: Long
 )
+
+@Serializable
+data class AuthResponse(
+    val token: String,
+    val player: Player
+)
