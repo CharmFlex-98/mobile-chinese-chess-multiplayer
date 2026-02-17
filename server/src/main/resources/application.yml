@@ -15,10 +15,15 @@ spring:
 
 logging:
   level:
-    org.springframework.security: DEBUG
-    org.springframework.security.oauth2: DEBUG
-    com.nimbusds.jwt: DEBUG
-    com.nimbusds.jose: DEBUG
-    org.springframework.web: DEBUG
+    org.springframework.security: TRACE
+    org.springframework.security.oauth2: TRACE
+    com.nimbusds.jwt: TRACE
+    com.nimbusds.jose: TRACE
+    org.springframework.web: TRACE
+    org.springframework.http.converter: TRACE
+    org.springframework.security.web.FilterChainProxy: TRACE
+    org.springframework.security.web.access: TRACE
+    org.springframework.security.web.authentication: TRACE
+    org.springframework.security.web.context: TRACE
 
 
