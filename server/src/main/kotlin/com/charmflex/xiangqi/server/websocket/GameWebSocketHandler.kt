@@ -3,6 +3,7 @@ package com.charmflex.xiangqi.server.websocket
 import com.charmflex.xiangqi.server.model.*
 import com.charmflex.xiangqi.server.service.BotService
 import com.charmflex.xiangqi.server.service.GameService
+import com.charmflex.xiangqi.server.service.JwtValidator
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
@@ -22,7 +23,7 @@ private val json = Json {
 class GameWebSocketHandler(
     private val gameService: GameService,
     private val botService: BotService,
-    private val jwtValidator: com.charmflex.xiangqi.server.service.JwtValidator
+    private val jwtValidator: JwtValidator
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(GameWebSocketHandler::class.java)
@@ -48,12 +49,10 @@ class GameWebSocketHandler(
     override fun afterConnectionEstablished(session: WebSocketSession) {
         log.info("[WS] Connection established: sessionId={} uri={}", session.id, session.uri)
         sessions[session.id] = session
-        val params = session.uri?.query?.let { query ->
-            query.split("&").mapNotNull {
-                val parts = it.split("=", limit = 2)
-                if (parts.size == 2) parts[0] to parts[1] else null
-            }.toMap()
-        } ?: emptyMap()
+        val params = session.uri?.query?.split("&")?.mapNotNull {
+            val parts = it.split("=", limit = 2)
+            if (parts.size == 2) parts[0] to parts[1] else null
+        }?.toMap() ?: emptyMap()
 
         val token = params["token"]
         val name = params["name"]

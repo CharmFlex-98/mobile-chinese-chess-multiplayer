@@ -4,6 +4,21 @@ server:
 spring:
   application:
     name: xiangqi-server
+  config:
+    import: optional:.env.properties
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SUPABASE_JWK_SET_URI}
+#          issuer-uri: ${SUPABASE_ISSUER_URI}
 
-supabase:
-  jwt-secret: ${SUPABASE_JWT_SECRET:}
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+    com.nimbusds.jwt: DEBUG
+    com.nimbusds.jose: DEBUG
+    org.springframework.web: DEBUG
+
+

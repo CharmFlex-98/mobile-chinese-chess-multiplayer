@@ -41,8 +41,8 @@ object AppModule {
 
     // Default: Android emulator loopback to host machine
     // Change to your LAN IP for real device testing (e.g., "http://192.168.1.100:8080")
-    const val DEFAULT_HTTP_URL = "http://10.0.2.2:8080"
-    const val DEFAULT_WS_URL = "ws://10.0.2.2:8080/ws"
+    const val DEFAULT_HTTP_URL = "http://192.168.1.15:8080"
+    const val DEFAULT_WS_URL = "ws://192.168.1.15:8080/ws"
 
     // TODO: Replace with your Supabase project values
     const val SUPABASE_URL = "https://rkfreguzvmbbybbbyivc.supabase.co"
