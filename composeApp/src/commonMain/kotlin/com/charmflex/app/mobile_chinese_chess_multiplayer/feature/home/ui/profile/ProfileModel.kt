@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 data class Player(
     val id: String,
     val name: String,
-    val xp: Int
+    val xp: Int = 0,
+    val level: Int = 1
 )

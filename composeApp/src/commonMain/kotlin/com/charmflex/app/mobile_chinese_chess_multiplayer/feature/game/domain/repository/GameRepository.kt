@@ -11,6 +11,7 @@ interface GameRepository {
     fun isConnected(): Flow<Boolean>
     fun subscribeMatchRoomEvents(roomId: String): Flow<WsServerMessage>
     fun subscribeMatchingEvents(): Flow<WsServerMessage>
+    fun subscribeGlobalChat(): Flow<WsServerMessage>
     suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse>
     suspend fun getActiveRooms(): Result<List<BattleRoom>>
     suspend fun joinRoom(roomId: String): Result<BattleRoom>
@@ -18,10 +19,12 @@ interface GameRepository {
     suspend fun leaveMatchmaking()
     suspend fun sendMove(roomId: String, move: Move)
     suspend fun sendChat(roomId: String, message: String)
+    suspend fun sendGlobalChat(message: String)
     suspend fun resign(roomId: String)
     suspend fun offerDraw(roomId: String)
     suspend fun respondToDraw(roomId: String, accepted: Boolean)
     suspend fun joinRoomWs(roomId: String)
+    suspend fun watchRoom(roomId: String)
     suspend fun reportGameOver(roomId: String, result: String, reason: String)
 }
 
@@ -45,7 +48,7 @@ data class BattleRoom(
     val guest: Player? = null,
     val status: String = "waiting",
     val timeControlSeconds: Int = 600,
-    val isPrivate: Boolean = false
+    val private: Boolean = false
 )
 
 @Serializable

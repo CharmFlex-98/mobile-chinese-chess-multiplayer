@@ -41,6 +41,7 @@ class GameDestination : DestinationBuilder {
     override fun NavGraphBuilder.buildGraph() {
         aiMatch()
         onlineMatch()
+        spectateMatch()
         aiSelect()
     }
 
@@ -75,6 +76,25 @@ class GameDestination : DestinationBuilder {
                     route.opponentName,
                     route.playerColor,
                     route.isCreator
+                )
+            }
+            val routeNavigator = remember { appDependencies.provideRouteNavigator() }
+            GameRoomScreen(
+                viewModel = gameRoomViewModel,
+                onBack = { routeNavigator.pop() }
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.spectateMatch() {
+        composable<GameRoute.Match.Spectate> {
+            val gameRoomViewModel = remember { appDependencies.getGameRoomViewModel() }
+            val route = it.toRoute<GameRoute.Match.Spectate>()
+            LaunchedEffect(Unit) {
+                gameRoomViewModel.startSpectating(
+                    route.roomId,
+                    route.redPlayerName,
+                    route.blackPlayerName
                 )
             }
             val routeNavigator = remember { appDependencies.provideRouteNavigator() }

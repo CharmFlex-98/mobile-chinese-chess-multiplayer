@@ -3,7 +3,6 @@ package com.charmflex.xiangqi.server.service
 import com.charmflex.xiangqi.server.model.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
@@ -69,12 +68,16 @@ class GameService {
         return players[playerId]
     }
 
+    fun getSessionIdForPlayer(playerId: String): String? {
+        return sessionPlayerMap.entries.firstOrNull { it.value == playerId }?.key
+    }
+
     fun createRoom(player: Player, name: String, timeControlSeconds: Int, isPrivate: Boolean): GameRoom {
         val room = GameRoom(
             name = name,
             redPlayer = player,
             timeControlSeconds = timeControlSeconds,
-            isPrivate = isPrivate,
+            private = isPrivate,
             redTimeMillis = timeControlSeconds * 1000L,
             blackTimeMillis = timeControlSeconds * 1000L
         )
@@ -105,7 +108,7 @@ class GameService {
     }
 
     fun getActiveRooms(): List<GameRoom> {
-        val active = rooms.values.filter { !it.isPrivate && it.status != RoomStatus.FINISHED }
+        val active = rooms.values.filter { !it.private && it.status != RoomStatus.FINISHED }
         log.info("[SVC] getActiveRooms: {} active out of {} total", active.size, rooms.size)
         return active
     }
@@ -155,6 +158,16 @@ class GameService {
         val room = rooms[roomId] ?: return null
         room.status = RoomStatus.FINISHED
         return if (room.redPlayer?.id == playerId) "black_wins" else "red_wins"
+    }
+
+    fun addXp(playerId: String, xpGain: Int): Player {
+        val player = players[playerId] ?: return Player(id = playerId, name = "Unknown")
+        val newXp = player.xp + xpGain
+        val newLevel = Player.computeLevel(newXp)
+        val updated = player.copy(xp = newXp, level = newLevel)
+        players[playerId] = updated
+        log.info("[SVC] XP added: player={} xp={}+{}={} level={}", player.name, player.xp, xpGain, newXp, newLevel)
+        return updated
     }
 
     // Matchmaking

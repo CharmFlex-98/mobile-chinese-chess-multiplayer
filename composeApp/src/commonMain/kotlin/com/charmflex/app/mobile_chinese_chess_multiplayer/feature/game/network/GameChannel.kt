@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
-import org.koin.core.annotation.Factory
+import org.koin.core.annotation.Singleton
 
-@Factory
+@Singleton
 class GameChannel(
     private val socketClient: WebSocketClient
 ) : RealTimeCommunicationChannel(socketClient) {
@@ -27,6 +27,7 @@ class GameChannel(
                 when (it.type) {
                     "move_made" -> wsJson.decodeFromJsonElement<MoveMade>(it.payload)
                     "game_started" -> wsJson.decodeFromJsonElement<GameStarted>(it.payload)
+                    "game_state" -> wsJson.decodeFromJsonElement<RoomSnapshot>(it.payload)
                     "game_over" -> wsJson.decodeFromJsonElement<GameOver>(it.payload)
                     "queue_update" -> wsJson.decodeFromJsonElement<QueueUpdate>(it.payload)
                     "match_found" -> wsJson.decodeFromJsonElement<MatchFound>(it.payload)
@@ -37,11 +38,13 @@ class GameChannel(
                     "opponent_reconnected" -> wsJson.decodeFromJsonElement<OpponentReconnected>(it.payload)
                     "draw_offered" -> wsJson.decodeFromJsonElement<DrawOffered>(it.payload)
                     "undo_requested" -> wsJson.decodeFromJsonElement<UndoRequested>(it.payload)
+                    "spectator_joined" -> wsJson.decodeFromJsonElement<SpectatorJoined>(it.payload)
+                    "spectator_left" -> wsJson.decodeFromJsonElement<SpectatorLeft>(it.payload)
+                    "xp_update" -> wsJson.decodeFromJsonElement<XpUpdate>(it.payload)
                     "error" -> wsJson.decodeFromJsonElement<Error>(it.payload)
                     else -> null
                 }
             }
-
     }
 
     suspend fun sendMove(roomId: String, move: MoveDto) {
@@ -80,6 +83,11 @@ class GameChannel(
         socketClient.send(RoomJoin(roomId))
     }
 
+    suspend fun watchRoom(roomId: String) {
+        println("[WS] Joining room as spectator: $roomId")
+        socketClient.send(RoomJoin(roomId))
+    }
+
     suspend fun reportGameOver(roomId: String, result: String, reason: String) {
         println("[WS] Reporting game over: room=$roomId result=$result reason=$reason")
         socketClient.send(GameClientOverReport(roomId, result, reason))
@@ -90,9 +98,6 @@ class GameChannel(
     }
 }
 
-
 private val GameChannelScene = object : RealTimeCommunicationChannel.ChannelScene {
-    override val name: String
-        get() = "game"
-
+    override val name: String get() = "game"
 }

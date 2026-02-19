@@ -48,6 +48,27 @@ class GameRoomViewModel(
         }
     }
 
+    fun startSpectating(roomId: String, redPlayerName: String, blackPlayerName: String) {
+        println("[GAME] startSpectating room=$roomId red=$redPlayerName black=$blackPlayerName")
+        aiEngine = null
+        _state.value = GameState(
+            gameMode = GameMode.ONLINE,
+            isSpectator = true,
+            spectatorRedPlayerName = redPlayerName,
+            spectatorBlackPlayerName = blackPlayerName,
+            onlineInfo = OnlineGameInfo(
+                roomId = roomId,
+                opponentName = redPlayerName,
+                playerColor = PieceColor.RED,
+                connectionState = ConnectionState.CONNECTED
+            )
+        )
+        viewModelScope.launch {
+            gameRepository.watchRoom(roomId)
+        }
+        observeOnlineEvents(roomId)
+    }
+
     fun startOnlineGame(roomId: String, opponentName: String, playerColor: PieceColor, isCreator: Boolean = false) {
         println("[GAME] startOnlineGame room=$roomId opponent=$opponentName color=$playerColor isCreator=$isCreator")
         aiEngine = null
@@ -114,6 +135,37 @@ class GameRoomViewModel(
                         println("[GAME] Game started!")
                         _state.update {
                             it.copy(waitingForOpponent = false)
+                        }
+                    }
+                    is RoomSnapshot -> {
+                        println("[GAME] Room snapshot: ${msg.moves.size} moves, red=${msg.redPlayer.name} black=${msg.blackPlayer.name}")
+                        var board = Board.initial()
+                        var currentTurn = PieceColor.RED
+                        val moveHistory = mutableListOf<Move>()
+                        for (moveDto in msg.moves) {
+                            val from = Position(moveDto.fromRow, moveDto.fromCol)
+                            val to = Position(moveDto.toRow, moveDto.toCol)
+                            val piece = board[from] ?: continue
+                            val captured = board[to]
+                            val move = Move(from = from, to = to, piece = piece, captured = captured)
+                            board = board.applyMove(move)
+                            moveHistory.add(move)
+                            currentTurn = currentTurn.opponent
+                        }
+                        val status = GameRules.getGameStatus(board, currentTurn)
+                        _state.update {
+                            it.copy(
+                                board = board,
+                                currentTurn = currentTurn,
+                                moveHistory = moveHistory.toList(),
+                                status = status,
+                                spectatorRedPlayerName = msg.redPlayer.name,
+                                spectatorBlackPlayerName = msg.blackPlayer.name,
+                                onlineInfo = it.onlineInfo?.copy(
+                                    redTimeMillis = msg.redTimeMillis,
+                                    blackTimeMillis = msg.blackTimeMillis
+                                )
+                            )
                         }
                     }
                     is DrawOffered -> {
@@ -199,6 +251,7 @@ class GameRoomViewModel(
 
     fun onBoardTap(pos: Position) {
         val currentState = _state.value
+        if (currentState.isSpectator) return
         if (currentState.status != GameStatus.PLAYING) return
         if (currentState.aiThinking) return
         if (currentState.waitingForOpponent) return

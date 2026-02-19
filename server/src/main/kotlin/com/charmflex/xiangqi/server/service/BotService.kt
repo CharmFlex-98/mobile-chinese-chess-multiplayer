@@ -5,6 +5,7 @@ import com.charmflex.xiangqi.engine.ai.AiEngine
 import com.charmflex.xiangqi.engine.model.*
 import com.charmflex.xiangqi.engine.rules.GameRules
 import com.charmflex.xiangqi.server.model.*
+import com.charmflex.xiangqi.server.websocket.*
 import jakarta.annotation.PostConstruct
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
@@ -36,6 +37,9 @@ class BotService(
 
     // Pending bot matchmaking timers: sessionId -> Job
     private val pendingBotMatches = ConcurrentHashMap<String, Job>()
+
+    // Track bot-vs-bot rooms: roomId -> (redBot, blackBot)
+    private val botVsBotRooms = ConcurrentHashMap<String, Pair<BotPlayer, BotPlayer>>()
 
     // Callback for sending messages to real players
     var messageSender: ((target: String, message: String, excludeSessionId: String?) -> Unit)? = null
@@ -69,7 +73,8 @@ class BotService(
                 player = Player(
                     id = "bot-${UUID.randomUUID()}",
                     name = def.name,
-                    xp = def.rating
+                    xp = def.rating,
+                    level = Player.computeLevel(def.rating)
                 ),
                 difficulty = def.difficulty,
                 minDelayMs = when {
@@ -102,10 +107,10 @@ class BotService(
             }
 
             log.info("[BOT] Creating bot opponent for player {}", queueEntry.player.name)
-            val bot = pickBotForRating(queueEntry.player.xp)
+            val bot = pickBotForLevel(Player.computeLevel(queueEntry.player.xp))
             gameService.registerBotPlayer(bot.player)
 
-            // Create room with bot
+            // Create room with real player as RED, bot as BLACK
             val room = gameService.createRoom(queueEntry.player, "Matched Game", timeControlSeconds, false)
             gameService.joinRoom(room.id, bot.player)
             gameService.leaveQueue(sessionId)
@@ -114,23 +119,20 @@ class BotService(
             val botSessionId = bot.player.id
             gameService.registerBotSession(botSessionId, bot.player)
 
-            // Decide colors: real player is RED, bot is BLACK
             val botColor = PieceColor.BLACK
 
             // Register real player's session in the room
             roomSessionRegistrar?.invoke(room.id, sessionId)
 
             // Send match_found to real player
-            val matchMsg = buildEnvelope("match_found", mapOf(
-                "roomId" to room.id,
-                "opponent" to mapOf(
-                    "id" to bot.player.id,
-                    "name" to bot.player.name,
-                    "level" to 1,
-                    "xp" to bot.player.xp
-                ),
-                "playerColor" to "RED"
-            ))
+            val matchMsg = WsMessageBuilder.buildGameMessage(
+                WsType.MATCH_FOUND,
+                MatchFoundPayload(
+                    roomId = room.id,
+                    opponent = bot.player,
+                    playerColor = "RED"
+                )
+            )
             sendToSession(sessionId, matchMsg)
 
             // Start bot game loop
@@ -223,24 +225,21 @@ class BotService(
 
             // Broadcast move to real player
             val updatedRoom = gameService.getRoom(roomId) ?: return@launch
-            val moveMsg = buildEnvelope("move_made", mapOf(
-                "roomId" to roomId,
-                "move" to mapOf(
-                    "fromRow" to moveDto.fromRow,
-                    "fromCol" to moveDto.fromCol,
-                    "toRow" to moveDto.toRow,
-                    "toCol" to moveDto.toCol
-                ),
-                "playerId" to bot.player.id
-            ))
+            val moveMsg = WsMessageBuilder.buildGameMessage(
+                WsType.MOVE_MADE,
+                MoveMadePayload(roomId = roomId, move = moveDto, playerId = bot.player.id)
+            )
             broadcastToRoom(roomId, moveMsg, excludeSessionId = bot.player.id)
 
             // Send timer update
-            val timerMsg = buildEnvelope("timer_update", mapOf(
-                "roomId" to roomId,
-                "redTimeMillis" to updatedRoom.redTimeMillis,
-                "blackTimeMillis" to updatedRoom.blackTimeMillis
-            ))
+            val timerMsg = WsMessageBuilder.buildGameMessage(
+                WsType.TIMER_UPDATE,
+                TimerUpdatePayload(
+                    roomId = roomId,
+                    redTimeMillis = updatedRoom.redTimeMillis,
+                    blackTimeMillis = updatedRoom.blackTimeMillis
+                )
+            )
             broadcastToRoom(roomId, timerMsg, excludeSessionId = null)
 
             // Check for game over
@@ -255,11 +254,10 @@ class BotService(
                     GameStatus.DRAW -> "draw"
                     GameStatus.PLAYING -> return@launch
                 }
-                val gameOverMsg = buildEnvelope("game_over", mapOf(
-                    "roomId" to roomId,
-                    "result" to result,
-                    "reason" to "checkmate"
-                ))
+                val gameOverMsg = WsMessageBuilder.buildGameMessage(
+                    WsType.GAME_OVER,
+                    GameOverPayload(roomId = roomId, result = result, reason = "checkmate")
+                )
                 broadcastToRoom(roomId, gameOverMsg, excludeSessionId = null)
                 cleanupBotGame(roomId)
             }
@@ -293,14 +291,12 @@ class BotService(
 
                 val targetGames = 2
                 if (activeCount < targetGames) {
-                    val gamesToCreate = targetGames - activeCount
-                    repeat(gamesToCreate) {
+                    repeat(targetGames - activeCount) {
                         createBotVsBotGame()
                     }
                 }
 
-                val nextCheckDelay = (30_000L..90_000L).random()
-                delay(nextCheckDelay)
+                delay((30_000L..90_000L).random())
             }
         }
     }
@@ -336,7 +332,6 @@ class BotService(
         log.info("[BOT] Created bot-vs-bot game: room={} {} vs {}",
             room.id, lobbyRedBot.player.name, lobbyBlackBot.player.name)
 
-        // Store both bots for the room
         val board = Board.initial()
         botBoards[room.id] = board
         botColors[room.id] = PieceColor.RED
@@ -349,23 +344,22 @@ class BotService(
         scheduleBotMove(room.id)
     }
 
-    // Track bot-vs-bot rooms: roomId -> (redBot, blackBot)
-    private val botVsBotRooms = ConcurrentHashMap<String, Pair<BotPlayer, BotPlayer>>()
-
     private fun isBotVsBotGame(roomId: String): Boolean = botVsBotRooms.containsKey(roomId)
 
     // --- Helpers ---
 
-    private fun pickBotForRating(playerRating: Int): BotPlayer {
-        // Pick a bot with a similar rating (+/- 200)
-        val candidates = botPool.filter {
-            kotlin.math.abs(it.player.xp - playerRating) <= 300
+    private fun pickBotForLevel(playerLevel: Int): BotPlayer {
+        val targetDifficulty = when {
+            playerLevel <= 2 -> AiDifficulty.BEGINNER
+            playerLevel <= 4 -> AiDifficulty.EASY
+            playerLevel <= 6 -> AiDifficulty.MEDIUM
+            playerLevel <= 8 -> AiDifficulty.INTERMEDIATE
+            playerLevel <= 10 -> AiDifficulty.HARD
+            else -> AiDifficulty.EXPERT
         }
+        val candidates = botPool.filter { it.difficulty == targetDifficulty }
         val bot = (candidates.ifEmpty { botPool }).random()
-        // Return a copy with a fresh ID
-        return bot.copy(
-            player = bot.player.copy(id = "bot-${UUID.randomUUID()}")
-        )
+        return bot.copy(player = bot.player.copy(id = "bot-${UUID.randomUUID()}"))
     }
 
     fun onGameOver(roomId: String) {
@@ -381,13 +375,9 @@ class BotService(
         botVsBotRooms.remove(roomId)
     }
 
-    fun isBotSession(sessionId: String): Boolean {
-        return sessionId.startsWith("bot-")
-    }
+    fun isBotSession(sessionId: String): Boolean = sessionId.startsWith("bot-")
 
-    fun hasBot(roomId: String): Boolean {
-        return botPlayers.containsKey(roomId)
-    }
+    fun hasBot(roomId: String): Boolean = botPlayers.containsKey(roomId)
 
     // --- Message helpers ---
 
@@ -397,30 +387,5 @@ class BotService(
 
     private fun broadcastToRoom(roomId: String, message: String, excludeSessionId: String?) {
         messageSender?.invoke(roomId, message, excludeSessionId)
-    }
-
-    private fun buildEnvelope(type: String, payload: Map<String, Any?>): String {
-        val sb = StringBuilder()
-        sb.append("{\"type\":\"$type\",\"scene\":\"game\",\"payload\":")
-        sb.append(mapToJson(payload))
-        sb.append("}")
-        return sb.toString()
-    }
-
-    private fun mapToJson(map: Map<String, Any?>): String {
-        val entries = map.entries.joinToString(",") { (k, v) ->
-            "\"$k\":${valueToJson(v)}"
-        }
-        return "{$entries}"
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun valueToJson(value: Any?): String = when (value) {
-        null -> "null"
-        is String -> "\"$value\""
-        is Number -> value.toString()
-        is Boolean -> value.toString()
-        is Map<*, *> -> mapToJson(value as Map<String, Any?>)
-        else -> "\"$value\""
     }
 }

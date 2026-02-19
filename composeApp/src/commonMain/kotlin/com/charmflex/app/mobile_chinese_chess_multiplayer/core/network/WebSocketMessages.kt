@@ -20,10 +20,7 @@ sealed interface WsClientMessage {
     val type: String
 }
 
-
 interface WsServerMessage
-
-
 
 val wsJson = Json {
     ignoreUnknownKeys = true
@@ -31,8 +28,8 @@ val wsJson = Json {
     classDiscriminator = "type"
 }
 
+// ---- Game scene client messages ----
 
-// TODO - Should not aware of the subclasses
 @Serializable
 sealed class GameClientMessage : WsClientMessage {
     override val scene: String = "game"
@@ -130,6 +127,22 @@ data class GameClientOverReport(
     override val type: String get() = "game_over_report"
 }
 
+// ---- Global scene client messages ----
+
+@Serializable
+sealed class GlobalClientMessage : WsClientMessage {
+    override val scene: String = "global"
+}
+
+@Serializable
+@SerialName("global_chat_send")
+data class GlobalChatSend(
+    val message: String
+) : GlobalClientMessage() {
+    override val type: String get() = "global_chat_send"
+}
+
+// ---- Server-to-client messages (game scene) ----
 
 @Serializable
 @SerialName("move_made")
@@ -146,6 +159,18 @@ data class GameStarted(
     val redPlayer: Player,
     val blackPlayer: Player,
     val timeControlSeconds: Int
+) : WsServerMessage
+
+@Serializable
+@SerialName("game_state")
+data class RoomSnapshot(
+    val roomId: String,
+    val redPlayer: Player,
+    val blackPlayer: Player,
+    val timeControlSeconds: Int,
+    val moves: List<MoveDto>,
+    val redTimeMillis: Long,
+    val blackTimeMillis: Long
 ) : WsServerMessage
 
 @Serializable
@@ -178,7 +203,8 @@ data class ChatReceive(
     val senderId: String,
     val senderName: String,
     val message: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val isSpectator: Boolean = false
 ) : WsServerMessage
 
 @Serializable
@@ -220,6 +246,39 @@ data class DrawOffered(
 data class UndoRequested(
     val roomId: String,
     val requestedBy: String
+) : WsServerMessage
+
+@Serializable
+@SerialName("spectator_joined")
+data class SpectatorJoined(
+    val roomId: String,
+    val spectator: Player
+) : WsServerMessage
+
+@Serializable
+@SerialName("spectator_left")
+data class SpectatorLeft(
+    val roomId: String,
+    val spectatorId: String
+) : WsServerMessage
+
+@Serializable
+@SerialName("xp_update")
+data class XpUpdate(
+    val newXp: Int,
+    val newLevel: Int,
+    val xpGained: Int
+) : WsServerMessage
+
+// ---- Server-to-client messages (global scene) ----
+
+@Serializable
+@SerialName("global_chat_receive")
+data class GlobalChatReceive(
+    val senderId: String,
+    val senderName: String,
+    val message: String,
+    val timestamp: Long
 ) : WsServerMessage
 
 @Serializable

@@ -37,10 +37,11 @@ fun GameRoomScreen(
         }
     }
 
+    val isSpectator = state.isSpectator
     val isOnline = state.gameMode == GameMode.ONLINE
     val onlineInfo = state.onlineInfo
-    // Flip the board when the local player is BLACK in online mode
-    val isFlipped = isOnline && onlineInfo?.playerColor == PieceColor.BLACK
+    // Flip the board when the local player is BLACK in online mode (not for spectators)
+    val isFlipped = isOnline && !isSpectator && onlineInfo?.playerColor == PieceColor.BLACK
 
     Scaffold(
         containerColor = BackgroundDarkAlt
@@ -50,8 +51,28 @@ fun GameRoomScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // Spectating banner
+            if (isSpectator) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF7B1FA2).copy(alpha = 0.25f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "👁  SPECTATING",
+                        style = AppTypography.labelSmall,
+                        color = Color(0xFFCE93D8),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
             // Connection banner for online games
-            if (isOnline && onlineInfo != null) {
+            if (isOnline && !isSpectator && onlineInfo != null) {
                 ConnectionBanner(onlineInfo.connectionState)
             }
 
@@ -61,6 +82,10 @@ fun GameRoomScreen(
 
             PlayerHeader(
                 name = when {
+                    isSpectator -> if (topColor == PieceColor.BLACK)
+                        state.spectatorBlackPlayerName.ifBlank { "Black" }
+                    else
+                        state.spectatorRedPlayerName.ifBlank { "Red" }
                     isOnline && onlineInfo != null -> {
                         if (onlineInfo.playerColor == topColor) "You" else onlineInfo.opponentName
                     }
@@ -128,6 +153,10 @@ fun GameRoomScreen(
             // Bottom player header: local player's side (normally RED, BLACK when flipped)
             PlayerHeader(
                 name = when {
+                    isSpectator -> if (bottomColor == PieceColor.RED)
+                        state.spectatorRedPlayerName.ifBlank { "Red" }
+                    else
+                        state.spectatorBlackPlayerName.ifBlank { "Black" }
                     isOnline && onlineInfo != null -> {
                         if (onlineInfo.playerColor == bottomColor) "You" else onlineInfo.opponentName
                     }
@@ -155,49 +184,61 @@ fun GameRoomScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (onBack != null) {
+                if (isSpectator) {
+                    // Spectators can only leave
                     OutlinedButton(
-                        onClick = onBack,
-                        modifier = Modifier.weight(1f),
+                        onClick = { onBack?.invoke() },
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                        border = BorderStroke(1.dp, Color(0xFFCE93D8).copy(alpha = 0.4f))
                     ) {
-                        Text("Menu", color = TextGray, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-                }
-                if (isOnline) {
-                    Button(
-                        onClick = { viewModel.offerDraw() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.2f)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Draw", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-                    OutlinedButton(
-                        onClick = { viewModel.resignOnline() },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))
-                    ) {
-                        Text("Resign", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Leave Room", color = Color(0xFFCE93D8), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 } else {
-                    Button(
-                        onClick = { viewModel.resetGame() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("New Game", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    if (onBack != null) {
+                        OutlinedButton(
+                            onClick = onBack,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                        ) {
+                            Text("Menu", color = TextGray, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
                     }
-                    OutlinedButton(
-                        onClick = { viewModel.resetGame() },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-                    ) {
-                        Text("Resign", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    if (isOnline) {
+                        Button(
+                            onClick = { viewModel.offerDraw() },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.2f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Draw", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.resignOnline() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))
+                        ) {
+                            Text("Resign", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = { viewModel.resetGame() },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("New Game", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.resetGame() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                        ) {
+                            Text("Resign", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
                     }
                 }
             }
@@ -216,8 +257,8 @@ fun GameRoomScreen(
         )
     }
 
-    // Draw offer dialog
-    if (state.drawOffered) {
+    // Draw offer dialog (not shown to spectators)
+    if (!isSpectator && state.drawOffered) {
         AlertDialog(
             onDismissRequest = { viewModel.respondToDraw(false) },
             title = { Text("Draw Offer", color = Color.White) },
@@ -237,7 +278,7 @@ fun GameRoomScreen(
         )
     }
 
-    // Chat panel (bottom sheet style)
+    // Chat panel (bottom sheet style) — shown for both players and spectators
     if (isOnline) {
         ChatPanel(
             messages = state.chatMessages,

@@ -220,6 +220,32 @@ class BattleLobbyViewModel(
         }
     }
 
+    fun showWatchConfirmation(room: BattleRoom) {
+        _state.update { it.copy(pendingWatchRoom = room) }
+    }
+
+    fun dismissWatchConfirmation() {
+        _state.update { it.copy(pendingWatchRoom = null) }
+    }
+
+    fun confirmWatchRoom() {
+        val room = _state.value.pendingWatchRoom ?: return
+        _state.update {
+            it.copy(
+                pendingWatchRoom = null,
+                watchRoomId = room.id,
+                watchRedPlayerName = room.host.name,
+                watchBlackPlayerName = room.guest?.name ?: ""
+            )
+        }
+    }
+
+    fun clearWatchRoom() {
+        _state.update {
+            it.copy(watchRoomId = null, watchRedPlayerName = "", watchBlackPlayerName = "")
+        }
+    }
+
     fun dismissError() {
         _state.update { it.copy(error = null) }
     }
@@ -245,7 +271,11 @@ data class BattleLobbyState(
     val matchFoundIsCreator: Boolean = false,
     val isConnected: Boolean = false,
     val isGuest: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val pendingWatchRoom: BattleRoom? = null,
+    val watchRoomId: String? = null,
+    val watchRedPlayerName: String = "",
+    val watchBlackPlayerName: String = ""
 )
 
 enum class MatchmakingStatus {
