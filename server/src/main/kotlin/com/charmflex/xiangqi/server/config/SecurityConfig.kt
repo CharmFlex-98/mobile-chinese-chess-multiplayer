@@ -26,7 +26,7 @@ internal class SecurityConfig(
             .csrf { obj: CsrfConfigurer<HttpSecurity> -> obj.disable() }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers("/api/public/**", "/api/auth/**")
+                    .requestMatchers("/api/public/**", "/api/auth/**", "/ws", "/ws/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated()

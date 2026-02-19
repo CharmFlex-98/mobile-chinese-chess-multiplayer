@@ -1,15 +1,13 @@
 package com.charmflex.xiangqi.server.controller
 
+import com.charmflex.xiangqi.server.exception.UnauthorizedException
 import com.charmflex.xiangqi.server.model.GameRoom
-import com.charmflex.xiangqi.server.model.Player
+import com.charmflex.xiangqi.server.model.LoginVerifyRequest
+import com.charmflex.xiangqi.server.model.LoginVerifyResponse
 import com.charmflex.xiangqi.server.service.GameService
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.Authentication
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 
 private val json = Json { encodeDefaults = true }
@@ -33,37 +31,34 @@ class RoomController(
             "player" to mapOf(
                 "id" to player.id,
                 "name" to player.name,
-                "rating" to player.rating
+                "xp" to player.xp
             )
         ))
     }
 
-    @PostMapping("/auth/supabase")
-    fun supabaseLogin(
-        @RequestHeader("Authorization", required = false) auth: String?,
-        @RequestBody body: Map<String, String>,
-        authentication: Authentication
-    ): ResponseEntity<Map<String, Any>> {
-        val userId = (authentication.principal as? Jwt)?.subject
-        if (userId == null) {
-            log.warn("[API] Unable to retrieve userId")
-            return ResponseEntity.badRequest().body(mapOf("error" to "cannot extract userId"))
+    @PostMapping("/auth/login/verify")
+    fun loginVerify(
+        @RequestBody body: LoginVerifyRequest,
+    ): ResponseEntity<LoginVerifyResponse> {
+        val token = body.token
+        val tokenUserId = jwtValidator.validateAndGetUserId(token)
+        if (tokenUserId == null || tokenUserId != body.uid) {
+            throw UnauthorizedException
         }
 
-        val displayName = body["displayName"] ?: "Player"
-        log.info("[API] Supabase login: userId={} name={}", userId.take(8), displayName)
+        val displayName = body.displayName
+        log.info("[API] Supabase login: userId={} name={}", body.uid.take(8), displayName)
 
-        val player = gameService.getOrCreatePlayer(userId, displayName)
+        val player = gameService.getOrCreatePlayer(body.uid, displayName)
         log.info("[API] Supabase player: id={} name={}", player.id.take(8), player.name)
 
-        return ResponseEntity.ok(mapOf(
-            "token" to player.id,
-            "player" to mapOf(
-                "id" to player.id,
-                "name" to player.name,
-                "rating" to player.rating
-            )
-        ))
+        val response = LoginVerifyResponse(
+            token = token,
+            uid = tokenUserId,
+            displayName = displayName,
+            guest = false
+        )
+        return ResponseEntity.ok(response)
     }
 
     @GetMapping("/rooms")
@@ -73,7 +68,7 @@ class RoomController(
         return ResponseEntity.ok(mapOf("rooms" to rooms))
     }
 
-    @PostMapping("/rooms")
+    @PostMapping("/rooms/create")
     fun createRoom(
         @RequestHeader("Authorization", required = false) auth: String?,
         @RequestBody body: Map<String, Any>
@@ -129,10 +124,10 @@ class RoomController(
         "host" to mapOf(
             "id" to (redPlayer?.id ?: ""),
             "name" to (redPlayer?.name ?: ""),
-            "rating" to (redPlayer?.rating ?: 1200)
+            "xp" to (redPlayer?.xp ?: 1200)
         ),
         "guest" to blackPlayer?.let {
-            mapOf("id" to it.id, "name" to it.name, "rating" to it.rating)
+            mapOf("id" to it.id, "name" to it.name, "xp" to it.xp)
         },
         "status" to status.name.lowercase(),
         "timeControlSeconds" to timeControlSeconds,

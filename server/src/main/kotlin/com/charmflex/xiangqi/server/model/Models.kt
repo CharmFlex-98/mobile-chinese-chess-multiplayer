@@ -3,13 +3,12 @@ package com.charmflex.xiangqi.server.model
 import com.charmflex.xiangqi.engine.ai.AiDifficulty
 import kotlinx.serialization.Serializable
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
 data class Player(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val rating: Int = 1200
+    val xp: Int = 1200
 )
 
 @Serializable

@@ -242,7 +242,7 @@ class GameWebSocketHandler(
                 put("opponent", buildJsonObject {
                     put("id", entry2.player.id)
                     put("name", entry2.player.name)
-                    put("rating", entry2.player.rating)
+                    put("xp", entry2.player.xp)
                 })
                 put("playerColor", "RED")
             }))
@@ -252,7 +252,7 @@ class GameWebSocketHandler(
                 put("opponent", buildJsonObject {
                     put("id", entry1.player.id)
                     put("name", entry1.player.name)
-                    put("rating", entry1.player.rating)
+                    put("xp", entry1.player.xp)
                 })
                 put("playerColor", "BLACK")
             }))
@@ -368,7 +368,7 @@ class GameWebSocketHandler(
             put("opponent", buildJsonObject {
                 put("id", player.id)
                 put("name", player.name)
-                put("rating", player.rating)
+                put("xp", player.xp)
             })
         }), excludeSessionId = session.id)
 
@@ -383,12 +383,14 @@ class GameWebSocketHandler(
                 put("redPlayer", buildJsonObject {
                     put("id", red.id)
                     put("name", red.name)
-                    put("rating", red.rating)
+                    put("xp", red.xp)
+                    put("level", 1)
                 })
                 put("blackPlayer", buildJsonObject {
                     put("id", black.id)
                     put("name", black.name)
-                    put("rating", black.rating)
+                    put("xp", black.xp)
+                    put("level", 1)
                 })
                 put("timeControlSeconds", room.timeControlSeconds)
             }))
@@ -419,6 +421,7 @@ class GameWebSocketHandler(
     private fun buildEnvelope(type: String, payload: JsonObject): String {
         return json.encodeToString(buildJsonObject {
             put("type", type)
+            put("scene", "game")
             put("payload", payload)
         })
     }
