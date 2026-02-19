@@ -69,7 +69,7 @@ class BotService(
                 player = Player(
                     id = "bot-${UUID.randomUUID()}",
                     name = def.name,
-                    rating = def.rating
+                    xp = def.rating
                 ),
                 difficulty = def.difficulty,
                 minDelayMs = when {
@@ -102,7 +102,7 @@ class BotService(
             }
 
             log.info("[BOT] Creating bot opponent for player {}", queueEntry.player.name)
-            val bot = pickBotForRating(queueEntry.player.rating)
+            val bot = pickBotForRating(queueEntry.player.xp)
             gameService.registerBotPlayer(bot.player)
 
             // Create room with bot
@@ -126,7 +126,8 @@ class BotService(
                 "opponent" to mapOf(
                     "id" to bot.player.id,
                     "name" to bot.player.name,
-                    "rating" to bot.player.rating
+                    "level" to 1,
+                    "xp" to bot.player.xp
                 ),
                 "playerColor" to "RED"
             ))
@@ -358,7 +359,7 @@ class BotService(
     private fun pickBotForRating(playerRating: Int): BotPlayer {
         // Pick a bot with a similar rating (+/- 200)
         val candidates = botPool.filter {
-            kotlin.math.abs(it.player.rating - playerRating) <= 300
+            kotlin.math.abs(it.player.xp - playerRating) <= 300
         }
         val bot = (candidates.ifEmpty { botPool }).random()
         // Return a copy with a fresh ID
@@ -400,7 +401,7 @@ class BotService(
 
     private fun buildEnvelope(type: String, payload: Map<String, Any?>): String {
         val sb = StringBuilder()
-        sb.append("{\"type\":\"$type\",\"payload\":")
+        sb.append("{\"type\":\"$type\",\"scene\":\"game\",\"payload\":")
         sb.append(mapToJson(payload))
         sb.append("}")
         return sb.toString()

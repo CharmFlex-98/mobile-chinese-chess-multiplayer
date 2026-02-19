@@ -1,5 +1,8 @@
 package com.charmflex.xiangqi.engine.ai
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class AiDifficulty(
     val label: String,
     val depth: Int,
