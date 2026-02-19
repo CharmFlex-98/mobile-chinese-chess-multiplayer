@@ -21,9 +21,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.encodeToJsonElement
-import org.koin.core.annotation.Factory
+import org.koin.core.annotation.Singleton
 
-@Factory
+@Singleton
 class WebSocketClient(
     private val appConfigProvider: AppConfigProvider,
     private val sessionManager: SessionManager

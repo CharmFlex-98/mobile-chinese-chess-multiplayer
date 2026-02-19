@@ -69,6 +69,11 @@ class HomeDestinationBuilder : DestinationBuilder {
                                         roomId, opponentName, color, isCreator
                                     )
                                 )
+                            },
+                            onNavigateToSpectate = { roomId, redPlayerName, blackPlayerName ->
+                                routeNavigator.navigateTo(
+                                    GameRoute.Match.Spectate(roomId, redPlayerName, blackPlayerName)
+                                )
                             }
                         )
 

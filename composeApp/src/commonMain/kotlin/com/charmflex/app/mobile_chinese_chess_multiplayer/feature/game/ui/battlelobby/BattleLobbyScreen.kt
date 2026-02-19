@@ -23,11 +23,13 @@ import androidx.compose.ui.unit.sp
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.theme.*
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.BattleRoom
 import kotlinx.coroutines.delay
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.theme.SurfaceDark
 
 @Composable
 fun BattleLobbyScreen(
     viewModel: BattleLobbyViewModel,
-    onNavigateToGame: (roomId: String, opponentName: String, playerColor: String, isCreator: Boolean) -> Unit = { _, _, _, _ -> }
+    onNavigateToGame: (roomId: String, opponentName: String, playerColor: String, isCreator: Boolean) -> Unit = { _, _, _, _ -> },
+    onNavigateToSpectate: (roomId: String, redPlayerName: String, blackPlayerName: String) -> Unit = { _, _, _ -> }
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -42,6 +44,15 @@ fun BattleLobbyScreen(
                 state.matchFoundIsCreator
             )
             viewModel.clearMatchFound()
+        }
+    }
+
+    // Navigate when watch room is confirmed
+    LaunchedEffect(state.watchRoomId) {
+        val roomId = state.watchRoomId
+        if (roomId != null) {
+            onNavigateToSpectate(roomId, state.watchRedPlayerName, state.watchBlackPlayerName)
+            viewModel.clearWatchRoom()
         }
     }
 
@@ -95,7 +106,9 @@ fun BattleLobbyScreen(
             items(state.activeRooms) { room ->
                 RoomCard(
                     room = room,
-                    onJoin = { viewModel.joinRoom(room.id) }
+                    isGuest = state.isGuest,
+                    onJoin = { viewModel.joinRoom(room.id) },
+                    onWatch = { viewModel.showWatchConfirmation(room) }
                 )
             }
             if (state.activeRooms.isEmpty() && !state.isLoadingRooms) {
@@ -114,6 +127,50 @@ fun BattleLobbyScreen(
             }
             item { CreateRoomSection(onCreateRoom = { viewModel.createRoom("My Room") }) }
         }
+    }
+
+    // Watch confirmation dialog
+    state.pendingWatchRoom?.let { room ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissWatchConfirmation() },
+            title = { Text("Watch This Game?", color = Color.White) },
+            text = {
+                Column {
+                    Text(
+                        room.name,
+                        style = AppTypography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${room.host.name} vs ${room.guest?.name ?: "Opponent"}",
+                        style = AppTypography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "⏱ ${room.timeControlSeconds / 60} min · In progress",
+                        style = AppTypography.bodySmall,
+                        color = GoldPrimary.copy(alpha = 0.8f)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmWatchRoom() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7B1FA2))
+                ) {
+                    Text("👁  Watch", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.dismissWatchConfirmation() }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = SurfaceDark
+        )
     }
 
     // Error snackbar
@@ -319,26 +376,45 @@ private fun ActiveRoomsHeader(roomCount: Int) {
 }
 
 @Composable
-private fun RoomCard(room: BattleRoom, onJoin: () -> Unit) {
+private fun RoomCard(
+    room: BattleRoom,
+    isGuest: Boolean,
+    onJoin: () -> Unit,
+    onWatch: () -> Unit
+) {
+    val isPlayingRoom = room.guest != null
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+            .background(
+                if (isPlayingRoom) Color(0xFF7B1FA2).copy(alpha = 0.08f)
+                else Color.White.copy(alpha = 0.05f),
+                RoundedCornerShape(12.dp)
+            )
+            .border(
+                1.dp,
+                if (isPlayingRoom) Color(0xFF7B1FA2).copy(alpha = 0.25f)
+                else Color.White.copy(alpha = 0.1f),
+                RoundedCornerShape(12.dp)
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(48.dp).background(GoldPrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
+            modifier = Modifier.size(48.dp).background(
+                if (isPlayingRoom) Color(0xFF7B1FA2).copy(alpha = 0.2f)
+                else GoldPrimary.copy(alpha = 0.2f),
+                RoundedCornerShape(8.dp)
+            ),
             contentAlignment = Alignment.Center
-        ) { Text("⚔", fontSize = 20.sp) }
+        ) { Text(if (isPlayingRoom) "👁" else "⚔", fontSize = 20.sp) }
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(room.name, style = AppTypography.titleMedium, color = Color.White, fontSize = 14.sp)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val occupancy = if (room.guest != null) "2/2" else "1/2"
+                val occupancy = if (isPlayingRoom) "2/2" else "1/2"
                 Text("👤 $occupancy", style = AppTypography.labelSmall, color = Color.White.copy(alpha = 0.5f))
                 Spacer(Modifier.width(12.dp))
                 Text(
@@ -346,27 +422,55 @@ private fun RoomCard(room: BattleRoom, onJoin: () -> Unit) {
                     style = AppTypography.labelSmall,
                     color = Color.White.copy(alpha = 0.5f)
                 )
+                if (isPlayingRoom) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "● LIVE",
+                        style = AppTypography.labelSmall,
+                        color = Color(0xFF4CAF50),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            if (isPlayingRoom) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${room.host.name} vs ${room.guest?.name ?: ""}",
+                    style = AppTypography.labelSmall,
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 10.sp
+                )
             }
         }
-        if (room.guest == null) {
+        if (isPlayingRoom) {
+            Button(
+                onClick = onWatch,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF7B1FA2).copy(alpha = 0.7f),
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) { Text("WATCH", style = AppTypography.labelSmall, fontWeight = FontWeight.Bold) }
+        } else if (isGuest) {
+            Surface(
+                color = Color.White.copy(alpha = 0.05f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    "SIGN IN",
+                    style = AppTypography.labelSmall,
+                    color = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        } else {
             Button(
                 onClick = onJoin,
                 colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) { Text("JOIN", style = AppTypography.labelSmall, fontWeight = FontWeight.Bold) }
-        } else {
-            Surface(
-                color = Color.White.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    "FULL",
-                    style = AppTypography.labelSmall,
-                    color = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
         }
     }
 }

@@ -49,5 +49,8 @@ data class GameState(
     val onlineInfo: OnlineGameInfo? = null,
     val waitingForOpponent: Boolean = false,
     val chatMessages: List<ChatMessage> = emptyList(),
-    val drawOffered: Boolean = false
+    val drawOffered: Boolean = false,
+    val isSpectator: Boolean = false,
+    val spectatorRedPlayerName: String = "",
+    val spectatorBlackPlayerName: String = ""
 )

@@ -20,6 +20,13 @@ object GameRoute {
             val playerColor: PieceColor,
             val isCreator: Boolean
         ) : Match
+
+        @Serializable
+        data class Spectate(
+            val roomId: String,
+            val redPlayerName: String,
+            val blackPlayerName: String
+        ) : Match
     }
     @Serializable
     object AiSelect : NavigationRoute

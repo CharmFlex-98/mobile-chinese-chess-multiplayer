@@ -13,6 +13,7 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.re
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomResponse
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.GameRepository
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.network.GameChannel
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.network.GlobalChatChannel
 import com.charmflex.xiangqi.engine.model.Move
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -21,7 +22,8 @@ import org.koin.core.annotation.Singleton
 @Singleton
 class GameRepositoryImpl(
     private val networkClient: NetworkClient,
-    private val gameChannel: GameChannel
+    private val gameChannel: GameChannel,
+    private val globalChatChannel: GlobalChatChannel
 ) : GameRepository {
     override suspend fun connectLobby() {
         gameChannel.connectWebSocket()
@@ -38,6 +40,7 @@ class GameRepositoryImpl(
                     is MoveMade -> it.roomId == roomId
                     is GameOver -> it.roomId == roomId
                     is GameStarted -> it.roomId == roomId
+                    is RoomSnapshot -> it.roomId == roomId
                     is TimerUpdate -> it.roomId == roomId
                     is ChatReceive -> it.roomId == roomId
                     is OpponentJoined -> it.roomId == roomId
@@ -45,6 +48,9 @@ class GameRepositoryImpl(
                     is OpponentReconnected -> it.roomId == roomId
                     is DrawOffered -> it.roomId == roomId
                     is UndoRequested -> it.roomId == roomId
+                    is SpectatorJoined -> it.roomId == roomId
+                    is SpectatorLeft -> it.roomId == roomId
+                    is XpUpdate -> true
                     else -> false
                 }
             }
@@ -52,9 +58,11 @@ class GameRepositoryImpl(
 
     override fun subscribeMatchingEvents(): Flow<WsServerMessage> {
         return gameChannel.subscribeChannel()
-            .filter {
-                it is QueueUpdate || it is MatchFound
-            }
+            .filter { it is QueueUpdate || it is MatchFound }
+    }
+
+    override fun subscribeGlobalChat(): Flow<WsServerMessage> {
+        return globalChatChannel.subscribeChannel()
     }
 
     override suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse> {
@@ -63,7 +71,6 @@ class GameRepositoryImpl(
                 networkClient.usePost("/api/rooms/create", createRoomRequest) {
                     add(NetworkAttributes.needToken)
                 }
-
             response
         }
     }
@@ -73,10 +80,8 @@ class GameRepositoryImpl(
             val response: ActiveRoomsResponse = networkClient.useGet("/api/rooms") {
                 add(NetworkAttributes.needToken)
             }
-
             response.rooms
         }
-
     }
 
     override suspend fun joinRoom(roomId: String): Result<BattleRoom> {
@@ -84,7 +89,6 @@ class GameRepositoryImpl(
             val response: BattleRoom = networkClient.usePost("/api/rooms/${roomId}/join", Unit) {
                 add(NetworkAttributes.needToken)
             }
-
             response
         }
     }
@@ -111,6 +115,10 @@ class GameRepositoryImpl(
         gameChannel.sendChat(roomId, message)
     }
 
+    override suspend fun sendGlobalChat(message: String) {
+        globalChatChannel.sendGlobalChat(message)
+    }
+
     override suspend fun resign(roomId: String) {
         gameChannel.resign(roomId)
     }
@@ -125,6 +133,10 @@ class GameRepositoryImpl(
 
     override suspend fun joinRoomWs(roomId: String) {
         gameChannel.joinRoom(roomId)
+    }
+
+    override suspend fun watchRoom(roomId: String) {
+        gameChannel.watchRoom(roomId)
     }
 
     override suspend fun reportGameOver(roomId: String, result: String, reason: String) {
