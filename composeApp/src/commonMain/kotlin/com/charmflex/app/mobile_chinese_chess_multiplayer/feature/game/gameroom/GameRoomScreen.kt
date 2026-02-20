@@ -7,7 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,6 +25,7 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.gameroom.
 import com.charmflex.xiangqi.engine.rules.MoveValidator
 import com.charmflex.xiangqi.engine.model.*
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GameRoomScreen(
     viewModel: GameRoomViewModel,
@@ -30,6 +33,10 @@ fun GameRoomScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var showGameOverDialog by remember { mutableStateOf(false) }
+
+    BackHandler {
+        viewModel.quitConfirmation(true)
+    }
 
     LaunchedEffect(state.status) {
         if (state.status != GameStatus.PLAYING) {
@@ -272,6 +279,38 @@ fun GameRoomScreen(
             dismissButton = {
                 OutlinedButton(onClick = { viewModel.respondToDraw(false) }) {
                     Text("Decline", color = Color.White)
+                }
+            },
+            containerColor = SurfaceDark
+        )
+    }
+
+    if (state.quitConfirmation) {
+        AlertDialog(
+            onDismissRequest = { viewModel.quitConfirmation(false) },
+            title = { Text("Abandon the game?", color = Color.White) },
+            text = {
+                Column {
+                    Text(
+                        "You will need to recreate a new game",
+                        style = AppTypography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.abandonGame() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7B1FA2))
+                ) {
+                    Text("Abandon", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.quitConfirmation(false) }) {
+                    Text("Cancel", color = Color.White)
                 }
             },
             containerColor = SurfaceDark

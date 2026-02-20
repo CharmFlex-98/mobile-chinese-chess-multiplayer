@@ -50,6 +50,7 @@ object WsType {
     const val UNDO_REQUEST = "undo_request"
     const val UNDO_RESPONSE = "undo_response"
     const val ROOM_JOIN = "room_join"
+    const val ROOM_ABANDON = "room_abandon"
     const val GAME_OVER_REPORT = "game_over_report"
 
     // Global scene - client to server

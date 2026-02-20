@@ -144,7 +144,7 @@ fun BattleLobbyScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "${room.host.name} vs ${room.guest?.name ?: "Opponent"}",
+                        "${room.host?.name ?: "Host"} vs ${room.guest?.name ?: "Opponent"}",
                         style = AppTypography.bodySmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -382,7 +382,7 @@ private fun RoomCard(
     onJoin: () -> Unit,
     onWatch: () -> Unit
 ) {
-    val isPlayingRoom = room.guest != null
+    val isPlayingRoom = room.isPlayingRoom
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -414,7 +414,7 @@ private fun RoomCard(
             Text(room.name, style = AppTypography.titleMedium, color = Color.White, fontSize = 14.sp)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val occupancy = if (isPlayingRoom) "2/2" else "1/2"
+                val occupancy =  "${room.playingCount}/2"
                 Text("👤 $occupancy", style = AppTypography.labelSmall, color = Color.White.copy(alpha = 0.5f))
                 Spacer(Modifier.width(12.dp))
                 Text(
@@ -435,7 +435,7 @@ private fun RoomCard(
             if (isPlayingRoom) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "${room.host.name} vs ${room.guest?.name ?: ""}",
+                    "${room.host?.name} vs ${room.guest?.name}",
                     style = AppTypography.labelSmall,
                     color = Color.White.copy(alpha = 0.4f),
                     fontSize = 10.sp

@@ -15,7 +15,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class BotService(
-    private val gameService: GameService
+    private val gameService: GameService,
+    private val orchestrator: GameOrchestrator,
+    private val sessionRegistry: SessionRegistry
 ) {
     private val log = LoggerFactory.getLogger(BotService::class.java)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -26,7 +28,7 @@ class BotService(
     // Active bot game loops: roomId -> Job
     private val activeBotGames = ConcurrentHashMap<String, Job>()
 
-    // Bot boards: roomId -> Board (mirrors the game state)
+    // Bot boards: roomId -> Board (mirrors the game state for AI computation)
     private val botBoards = ConcurrentHashMap<String, Board>()
 
     // Bot color in each room: roomId -> PieceColor
@@ -40,12 +42,6 @@ class BotService(
 
     // Track bot-vs-bot rooms: roomId -> (redBot, blackBot)
     private val botVsBotRooms = ConcurrentHashMap<String, Pair<BotPlayer, BotPlayer>>()
-
-    // Callback for sending messages to real players
-    var messageSender: ((target: String, message: String, excludeSessionId: String?) -> Unit)? = null
-
-    // Callback for registering a session in a room
-    var roomSessionRegistrar: ((roomId: String, sessionId: String) -> Unit)? = null
 
     private fun createBotPool(): List<BotPlayer> {
         data class BotDef(val name: String, val rating: Int, val difficulty: AiDifficulty)
@@ -92,7 +88,7 @@ class BotService(
     }
 
     // --- Bot Matchmaking ---
-
+    // TODO: if bot and real player pick up at the same time?
     fun onPlayerQueueJoin(sessionId: String, timeControlSeconds: Int) {
         log.info("[BOT] Player {} joined queue, starting bot match timer", sessionId)
         val job = scope.launch {
@@ -108,21 +104,16 @@ class BotService(
 
             log.info("[BOT] Creating bot opponent for player {}", queueEntry.player.name)
             val bot = pickBotForLevel(Player.computeLevel(queueEntry.player.xp))
-            gameService.registerBotPlayer(bot.player)
 
             // Create room with real player as RED, bot as BLACK
             val room = gameService.createRoom(queueEntry.player, "Matched Game", timeControlSeconds, false)
             gameService.joinRoom(room.id, bot.player)
             gameService.leaveQueue(sessionId)
 
-            // Register bot session
-            val botSessionId = bot.player.id
-            gameService.registerBotSession(botSessionId, bot.player)
-
             val botColor = PieceColor.BLACK
 
             // Register real player's session in the room
-            roomSessionRegistrar?.invoke(room.id, sessionId)
+            gameService.addRoomSession(room.id, sessionId)
 
             // Send match_found to real player
             val matchMsg = WsMessageBuilder.buildGameMessage(
@@ -133,7 +124,7 @@ class BotService(
                     playerColor = "RED"
                 )
             )
-            sendToSession(sessionId, matchMsg)
+            sessionRegistry.sendToSession(sessionId, matchMsg)
 
             // Start bot game loop
             startBotGame(room.id, bot, botColor)
@@ -174,10 +165,11 @@ class BotService(
         val newBoard = board.applyMove(engineMove)
         botBoards[roomId] = newBoard
 
-        // Check if game is over
+        // Safety check: if game is already over from this move (should have been caught by
+        // handleMakeMove, but guard here for correctness), skip scheduling.
         val status = GameRules.getGameStatus(newBoard, botColor)
         if (status != GameStatus.PLAYING) {
-            log.info("[BOT] Game over in room {} after opponent move: {}", roomId, status)
+            log.info("[BOT] Game over in room {} after opponent move: {} (should have been caught upstream)", roomId, status)
             cleanupBotGame(roomId)
             return
         }
@@ -190,6 +182,7 @@ class BotService(
         val bot = botPlayers[roomId] ?: return
         val botColor = botColors[roomId] ?: return
 
+        activeBotGames.remove(roomId)?.cancel()
         val job = scope.launch {
             val delayMs = (bot.minDelayMs..bot.maxDelayMs).random()
             delay(delayMs)
@@ -215,59 +208,17 @@ class BotService(
             val newBoard = board.applyMove(bestMove)
             botBoards[roomId] = newBoard
 
-            // Submit move to GameService
+            // Delegate to orchestrator: applies move, broadcasts, handles game-over + XP + cleanup
             val moveDto = MoveDto(bestMove.from.row, bestMove.from.col, bestMove.to.row, bestMove.to.col)
-            val success = gameService.makeMove(roomId, moveDto, bot.player.id)
-            if (!success) {
-                log.warn("[BOT] Move rejected for bot {} in room {}", bot.player.name, roomId)
-                return@launch
-            }
+            val moveResult = orchestrator.applyBotMove(roomId, moveDto, bot.player.id) ?: return@launch
 
-            // Broadcast move to real player
-            val updatedRoom = gameService.getRoom(roomId) ?: return@launch
-            val moveMsg = WsMessageBuilder.buildGameMessage(
-                WsType.MOVE_MADE,
-                MoveMadePayload(roomId = roomId, move = moveDto, playerId = bot.player.id)
-            )
-            broadcastToRoom(roomId, moveMsg, excludeSessionId = bot.player.id)
-
-            // Send timer update
-            val timerMsg = WsMessageBuilder.buildGameMessage(
-                WsType.TIMER_UPDATE,
-                TimerUpdatePayload(
-                    roomId = roomId,
-                    redTimeMillis = updatedRoom.redTimeMillis,
-                    blackTimeMillis = updatedRoom.blackTimeMillis
-                )
-            )
-            broadcastToRoom(roomId, timerMsg, excludeSessionId = null)
-
-            // Check for game over
-            val opponentColor = botColor.opponent
-            val gameStatus = GameRules.getGameStatus(newBoard, opponentColor)
-            if (gameStatus != GameStatus.PLAYING) {
-                log.info("[BOT] Game over in room {} after bot move: {}", roomId, gameStatus)
-                updatedRoom.status = RoomStatus.FINISHED
-                val result = when (gameStatus) {
-                    GameStatus.RED_WINS -> "red_wins"
-                    GameStatus.BLACK_WINS -> "black_wins"
-                    GameStatus.DRAW -> "draw"
-                    GameStatus.PLAYING -> return@launch
-                }
-                val gameOverMsg = WsMessageBuilder.buildGameMessage(
-                    WsType.GAME_OVER,
-                    GameOverPayload(roomId = roomId, result = result, reason = "checkmate")
-                )
-                broadcastToRoom(roomId, gameOverMsg, excludeSessionId = null)
-                cleanupBotGame(roomId)
-            }
-
-            // For bot-vs-bot games, trigger next bot's move
-            if (isBotVsBotGame(roomId) && gameStatus == GameStatus.PLAYING) {
+            // For bot-vs-bot games, trigger the next bot's move only if game is still ongoing
+            val gameStillRunning = moveResult.gameStatus == GameStatus.PLAYING && !moveResult.timedOut
+            if (isBotVsBotGame(roomId) && gameStillRunning) {
                 val bots = botVsBotRooms[roomId] ?: return@launch
-                val nextBotColor = opponentColor
-                val nextBot = if (nextBotColor == PieceColor.RED) bots.first else bots.second
-                botColors[roomId] = nextBotColor
+                val opponentColor = botColor.opponent
+                val nextBot = if (opponentColor == PieceColor.RED) bots.first else bots.second
+                botColors[roomId] = opponentColor
                 botPlayers[roomId] = nextBot
                 scheduleBotMove(roomId)
             }
@@ -281,7 +232,6 @@ class BotService(
     fun startLobbySimulation() {
         log.info("[BOT] Starting lobby simulation")
         scope.launch {
-            // Initial delay before first game
             delay(5_000)
 
             while (isActive) {
@@ -316,18 +266,12 @@ class BotService(
             maxDelayMs = 20000L
         )
 
-        // Use lower difficulty for CPU efficiency
         val lobbyRedBot = redBot.copy(difficulty = AiDifficulty.EASY)
         val lobbyBlackBot = blackBot.copy(difficulty = AiDifficulty.EASY)
 
-        gameService.registerBotPlayer(lobbyRedBot.player)
-        gameService.registerBotPlayer(lobbyBlackBot.player)
-
         val room = gameService.createRoom(lobbyRedBot.player, "Bot Match", 600, false)
         gameService.joinRoom(room.id, lobbyBlackBot.player)
-
-        gameService.registerBotSession(lobbyRedBot.player.id, lobbyRedBot.player)
-        gameService.registerBotSession(lobbyBlackBot.player.id, lobbyBlackBot.player)
+        gameService.recordGameStart(room.id)
 
         log.info("[BOT] Created bot-vs-bot game: room={} {} vs {}",
             room.id, lobbyRedBot.player.name, lobbyBlackBot.player.name)
@@ -337,10 +281,8 @@ class BotService(
         botColors[room.id] = PieceColor.RED
         botPlayers[room.id] = lobbyRedBot
 
-        // Track that both players are bots
         botVsBotRooms[room.id] = lobbyRedBot to lobbyBlackBot
 
-        // Start with red bot's move
         scheduleBotMove(room.id)
     }
 
@@ -378,14 +320,4 @@ class BotService(
     fun isBotSession(sessionId: String): Boolean = sessionId.startsWith("bot-")
 
     fun hasBot(roomId: String): Boolean = botPlayers.containsKey(roomId)
-
-    // --- Message helpers ---
-
-    private fun sendToSession(sessionId: String, message: String) {
-        messageSender?.invoke(sessionId, message, null)
-    }
-
-    private fun broadcastToRoom(roomId: String, message: String, excludeSessionId: String?) {
-        messageSender?.invoke(roomId, message, excludeSessionId)
-    }
 }

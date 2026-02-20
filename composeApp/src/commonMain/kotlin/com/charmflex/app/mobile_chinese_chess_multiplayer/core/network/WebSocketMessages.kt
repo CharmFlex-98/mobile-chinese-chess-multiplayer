@@ -118,6 +118,14 @@ data class RoomJoin(
 }
 
 @Serializable
+@SerialName("room_abandon")
+data class RoomAbandon(
+    val roomId: String
+) : GameClientMessage() {
+    override val type: String get() = "room_abandon"
+}
+
+@Serializable
 @SerialName("game_over_report")
 data class GameClientOverReport(
     val roomId: String,

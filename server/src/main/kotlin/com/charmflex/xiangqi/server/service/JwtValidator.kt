@@ -14,7 +14,7 @@ class JwtValidator(
 ) {
     private val log = LoggerFactory.getLogger(JwtValidator::class.java)
 
-    fun validateAndGetUserId(token: String): String? {
+    fun validateAndGetUserId(token: String): JwtResult? {
         return try {
             if (token.isBlank()) {
                 throw Exception("Not a valid token. Token is blanked.")
@@ -22,7 +22,9 @@ class JwtValidator(
 
             val jwt = jwtDecoder.decode(token)
             log.info("[JWT] Token validated. subject={}", jwt.subject)
-            jwt.subject
+            val isAnonymous = (jwt.claims["is_anonymous"] as? Boolean)?: false
+
+            JwtResult(jwt.subject, isAnonymous)
         } catch (e: Exception) {
             log.error("[JWT] Failed to decode token: {}", e.message)
             null
@@ -33,3 +35,8 @@ class JwtValidator(
         return token.count { it == '.' } == 2
     }
 }
+
+data class JwtResult(
+    val userId: String,
+    val guest: Boolean = false
+)

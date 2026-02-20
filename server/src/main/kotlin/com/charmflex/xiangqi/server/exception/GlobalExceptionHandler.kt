@@ -45,3 +45,4 @@ abstract class ExceptionBase(
 
 object GenericException : ExceptionBase(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "GENERIC_ERROR", "generic error occurred.")
 object UnauthorizedException : ExceptionBase(HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED", "unauthorized access!")
+object ResourcesNotFound : ExceptionBase(HttpServletResponse.SC_NOT_FOUND, "NOT FOUND", "not found")

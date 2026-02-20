@@ -139,6 +139,10 @@ class GameRepositoryImpl(
         gameChannel.watchRoom(roomId)
     }
 
+    override suspend fun abandonGame(roomId: String) {
+        gameChannel.abandonGame(roomId)
+    }
+
     override suspend fun reportGameOver(roomId: String, result: String, reason: String) {
         gameChannel.reportGameOver(roomId, result, reason)
     }
