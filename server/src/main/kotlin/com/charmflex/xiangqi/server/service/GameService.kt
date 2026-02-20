@@ -92,6 +92,12 @@ class GameService {
 
     fun getRoom(roomId: String): GameRoom? = rooms[roomId]
 
+    fun findActiveRoomForPlayer(playerId: String): GameRoom? =
+        rooms.values.firstOrNull {
+            it.status == RoomStatus.PLAYING &&
+            (it.redPlayer?.id == playerId || it.blackPlayer?.id == playerId)
+        }
+
     fun removeRoom(roomId: String): GameRoom? {
         roomBoards.remove(roomId)
         roomSessionIdsMap.remove(roomId)

@@ -35,6 +35,7 @@ object WsType {
     const val SPECTATOR_LEFT = "spectator_left"
     const val XP_UPDATE = "xp_update"
     const val ERROR = "error"
+    const val REJOIN_AVAILABLE = "rejoin_available"
 
     // Global scene - server to client
     const val GLOBAL_CHAT_RECEIVE = "global_chat_receive"
@@ -134,6 +135,18 @@ data class XpUpdatePayload(val newXp: Int, val newLevel: Int, val xpGained: Int)
 
 @Serializable
 data class ErrorPayload(val code: String, val message: String)
+
+@Serializable
+data class RejoinAvailablePayload(
+    val roomId: String,
+    val opponentName: String,
+    val playerColor: String,
+    val redTimeMillis: Long,
+    val blackTimeMillis: Long
+)
+
+@Serializable
+data class OpponentReconnectedPayload(val roomId: String)
 
 // ---- Message builder ----
 

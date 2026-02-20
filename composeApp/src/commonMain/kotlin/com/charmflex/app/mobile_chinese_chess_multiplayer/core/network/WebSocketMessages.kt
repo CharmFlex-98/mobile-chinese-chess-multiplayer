@@ -295,3 +295,13 @@ data class Error(
     val code: String,
     val message: String
 ) : WsServerMessage
+
+@Serializable
+@SerialName("rejoin_available")
+data class RejoinAvailable(
+    val roomId: String,
+    val opponentName: String,
+    val playerColor: String,
+    val redTimeMillis: Long,
+    val blackTimeMillis: Long
+) : WsServerMessage

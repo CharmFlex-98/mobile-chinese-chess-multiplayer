@@ -3,6 +3,7 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.ui.battl
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.*
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.RejoinAvailable
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.BattleRoom
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomRequest
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.GameRepository
@@ -31,6 +32,7 @@ class BattleLobbyViewModel(
         observeConnection()
         observeAuthState()
         loadActiveRooms()
+        observeRejoin()
     }
 
     private fun observeConnection() {
@@ -246,6 +248,39 @@ class BattleLobbyViewModel(
         }
     }
 
+    private fun observeRejoin() {
+        viewModelScope.launch {
+            gameRepository.subscribeRejoinEvents().collect { msg ->
+                if (msg is RejoinAvailable) {
+                    println("[LOBBY] Rejoin available: room=${msg.roomId} opponent=${msg.opponentName}")
+                    _state.update {
+                        it.copy(rejoinInfo = RejoinInfo(msg.roomId, msg.opponentName, msg.playerColor))
+                    }
+                }
+            }
+        }
+    }
+
+    fun onRejoinAccepted() {
+        val info = _state.value.rejoinInfo ?: return
+        _state.update {
+            it.copy(
+                rejoinInfo = null,
+                matchFoundRoomId = info.roomId,
+                matchFoundOpponentName = info.opponentName,
+                matchFoundPlayerColor = info.playerColor,
+                matchFoundIsCreator = false,
+                matchmakingStatus = MatchmakingStatus.MATCH_FOUND
+            )
+        }
+    }
+
+    fun onRejoinDeclined() {
+        val roomId = _state.value.rejoinInfo?.roomId ?: return
+        _state.update { it.copy(rejoinInfo = null) }
+        viewModelScope.launch { gameRepository.abandonGame(roomId) }
+    }
+
     fun dismissError() {
         _state.update { it.copy(error = null) }
     }
@@ -257,6 +292,8 @@ class BattleLobbyViewModel(
     }
 }
 
+
+data class RejoinInfo(val roomId: String, val opponentName: String, val playerColor: String)
 
 data class BattleLobbyState(
     val matchmakingStatus: MatchmakingStatus = MatchmakingStatus.IDLE,
@@ -275,7 +312,8 @@ data class BattleLobbyState(
     val pendingWatchRoom: BattleRoom? = null,
     val watchRoomId: String? = null,
     val watchRedPlayerName: String = "",
-    val watchBlackPlayerName: String = ""
+    val watchBlackPlayerName: String = "",
+    val rejoinInfo: RejoinInfo? = null
 )
 
 enum class MatchmakingStatus {

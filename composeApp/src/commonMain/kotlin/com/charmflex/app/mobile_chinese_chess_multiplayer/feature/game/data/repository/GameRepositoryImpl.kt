@@ -65,6 +65,9 @@ class GameRepositoryImpl(
         return globalChatChannel.subscribeChannel()
     }
 
+    override fun subscribeRejoinEvents(): Flow<WsServerMessage> =
+        gameChannel.subscribeChannel().filter { it is RejoinAvailable }
+
     override suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse> {
         return resultOf {
             val response: CreateRoomResponse =
