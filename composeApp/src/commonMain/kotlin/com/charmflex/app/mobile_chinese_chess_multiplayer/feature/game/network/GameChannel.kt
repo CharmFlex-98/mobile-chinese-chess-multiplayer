@@ -88,6 +88,11 @@ class GameChannel(
         socketClient.send(RoomJoin(roomId))
     }
 
+    suspend fun abandonGame(roomId: String) {
+        println("[WS] Joining room as spectator: $roomId")
+        socketClient.send(RoomAbandon(roomId))
+    }
+
     suspend fun reportGameOver(roomId: String, result: String, reason: String) {
         println("[WS] Reporting game over: room=$roomId result=$result reason=$reason")
         socketClient.send(GameClientOverReport(roomId, result, reason))

@@ -52,5 +52,6 @@ data class GameState(
     val drawOffered: Boolean = false,
     val isSpectator: Boolean = false,
     val spectatorRedPlayerName: String = "",
-    val spectatorBlackPlayerName: String = ""
+    val spectatorBlackPlayerName: String = "",
+    val quitConfirmation: Boolean = false
 )

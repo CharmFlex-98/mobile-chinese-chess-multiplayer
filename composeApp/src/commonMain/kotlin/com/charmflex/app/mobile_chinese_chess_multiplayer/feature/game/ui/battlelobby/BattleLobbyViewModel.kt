@@ -164,11 +164,11 @@ class BattleLobbyViewModel(
         viewModelScope.launch {
             gameRepository.joinRoom(roomId)
                 .onSuccess { room ->
-                    println("[LOBBY] Joined room OK: ${room.id} host=${room.host.name}")
+                    println("[LOBBY] Joined room OK: ${room.id} host=${room.host?.name}")
                     _state.update {
                         it.copy(
                             matchFoundRoomId = room.id,
-                            matchFoundOpponentName = room.host.name,
+                            matchFoundOpponentName = room.host?.name ?: "Unknown",
                             matchFoundPlayerColor = "BLACK",
                             matchmakingStatus = MatchmakingStatus.MATCH_FOUND
                         )
@@ -234,7 +234,7 @@ class BattleLobbyViewModel(
             it.copy(
                 pendingWatchRoom = null,
                 watchRoomId = room.id,
-                watchRedPlayerName = room.host.name,
+                watchRedPlayerName = room.host?.name ?: "",
                 watchBlackPlayerName = room.guest?.name ?: ""
             )
         }

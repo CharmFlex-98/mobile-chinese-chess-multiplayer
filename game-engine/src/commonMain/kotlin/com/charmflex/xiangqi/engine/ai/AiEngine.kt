@@ -22,25 +22,42 @@ class AiEngine(private val difficulty: AiDifficulty) {
         private const val MAX_EXTENSIONS = 4
         private const val INF = Int.MAX_VALUE / 2
         private const val TIME_CHECK_INTERVAL = 4096L
+        // Sentinel for "no move". Safe because from==to is never a legal move, so 0 is never
+        // produced by encodeMove() for any real position.
+        private const val NO_MOVE = 0
     }
 
-    private data class TTEntry(
-        val hash: Long,
-        val depth: Int,
-        val score: Int,
-        val flag: Int,
-        val bestMove: Move?
-    )
+    // Transposition table stored as parallel primitive arrays instead of an object array.
+    // This eliminates per-entry object allocation and GC pressure for 262,144 entries.
+    // Move is encoded as: from.row | (from.col shl 4) | (to.row shl 8) | (to.col shl 12).
+    private val ttHashes = LongArray(TT_SIZE)
+    private val ttDepths = IntArray(TT_SIZE)
+    private val ttScores = IntArray(TT_SIZE)
+    private val ttFlags  = IntArray(TT_SIZE)
+    private val ttMoves  = IntArray(TT_SIZE)
 
-    private val transpositionTable = arrayOfNulls<TTEntry>(TT_SIZE)
     private var nodesSearched = 0L
 
-    private val killerMoves = Array(MAX_PLY) { arrayOfNulls<Move>(2) }
+    // Killer moves encoded as Int (same format as ttMoves) — avoids Move object allocations.
+    private val killerMoves = Array(MAX_PLY) { IntArray(2) }
 
     private val historyTable = Array(2) { Array(10) { Array(9) { Array(10) { IntArray(9) } } } }
 
     private var searchStart: TimeMark? = null
     private var searchAborted = false
+
+    /** Encodes only the from/to squares of a move into a single Int. */
+    private fun encodeMove(move: Move): Int =
+        move.from.row or (move.from.col shl 4) or (move.to.row shl 8) or (move.to.col shl 12)
+
+    /** Returns true if [move] has the same from/to squares as [encoded]. */
+    private fun sameMove(move: Move, encoded: Int): Boolean {
+        if (encoded == NO_MOVE) return false
+        return move.from.row == (encoded and 0xF) &&
+               move.from.col == ((encoded shr 4) and 0xF) &&
+               move.to.row   == ((encoded shr 8) and 0xF) &&
+               move.to.col   == ((encoded shr 12) and 0xF)
+    }
 
     fun findBestMove(board: Board, color: PieceColor): Move? {
         nodesSearched = 0
@@ -99,8 +116,8 @@ class AiEngine(private val difficulty: AiDifficulty) {
 
     private fun clearKillers() {
         for (ply in killerMoves.indices) {
-            killerMoves[ply][0] = null
-            killerMoves[ply][1] = null
+            killerMoves[ply][0] = NO_MOVE
+            killerMoves[ply][1] = NO_MOVE
         }
     }
 
@@ -118,8 +135,7 @@ class AiEngine(private val difficulty: AiDifficulty) {
 
         val hash = ZobristHash.hash(board, color)
         val ttIndex = (hash and (TT_SIZE - 1).toLong()).toInt()
-        val ttEntry = transpositionTable[ttIndex]
-        val ttBestMove = if (ttEntry != null && ttEntry.hash == hash) ttEntry.bestMove else null
+        val ttBestMove = if (ttHashes[ttIndex] == hash) ttMoves[ttIndex] else NO_MOVE
 
         val orderedMoves = orderMovesForSearch(moves, ttBestMove, 0)
 
@@ -190,15 +206,14 @@ class AiEngine(private val difficulty: AiDifficulty) {
         if (searchAborted) return 0
 
         val ttIndex = (hash and (TT_SIZE - 1).toLong()).toInt()
-        val ttEntry = transpositionTable[ttIndex]
-        var ttBestMove: Move? = null
-        if (ttEntry != null && ttEntry.hash == hash) {
-            ttBestMove = ttEntry.bestMove
-            if (ttEntry.depth >= depth) {
-                when (ttEntry.flag) {
-                    0 -> return ttEntry.score
-                    1 -> if (ttEntry.score >= beta) return ttEntry.score
-                    2 -> if (ttEntry.score <= alpha) return ttEntry.score
+        var ttBestMove = NO_MOVE
+        if (ttHashes[ttIndex] == hash) {
+            ttBestMove = ttMoves[ttIndex]
+            if (ttDepths[ttIndex] >= depth) {
+                when (ttFlags[ttIndex]) {
+                    0 -> return ttScores[ttIndex]
+                    1 -> if (ttScores[ttIndex] >= beta) return ttScores[ttIndex]
+                    2 -> if (ttScores[ttIndex] <= alpha) return ttScores[ttIndex]
                 }
             }
         }
@@ -223,7 +238,7 @@ class AiEngine(private val difficulty: AiDifficulty) {
         val orderedMoves = orderMovesForSearch(moves, ttBestMove, ply)
 
         var currentAlpha = alpha
-        var bestMove: Move? = null
+        var bestMove = NO_MOVE
         var legalMoveCount = 0
 
         for (move in orderedMoves) {
@@ -276,12 +291,17 @@ class AiEngine(private val difficulty: AiDifficulty) {
             if (searchAborted) return 0
 
             if (score >= beta) {
-                transpositionTable[ttIndex] = TTEntry(hash, depth, score, 1, move)
+                val encoded = encodeMove(move)
+                ttHashes[ttIndex] = hash
+                ttDepths[ttIndex] = depth
+                ttScores[ttIndex] = score
+                ttFlags[ttIndex]  = 1
+                ttMoves[ttIndex]  = encoded
 
                 if (move.captured == null && ply < MAX_PLY) {
-                    if (!sameMove(killerMoves[ply][0], move)) {
+                    if (killerMoves[ply][0] != encoded) {
                         killerMoves[ply][1] = killerMoves[ply][0]
-                        killerMoves[ply][0] = move
+                        killerMoves[ply][0] = encoded
                     }
                     val ci = if (color == PieceColor.RED) 0 else 1
                     historyTable[ci][move.from.row][move.from.col][move.to.row][move.to.col] += depth * depth
@@ -291,7 +311,7 @@ class AiEngine(private val difficulty: AiDifficulty) {
             }
             if (score > currentAlpha) {
                 currentAlpha = score
-                bestMove = move
+                bestMove = encodeMove(move)
             }
         }
 
@@ -304,7 +324,11 @@ class AiEngine(private val difficulty: AiDifficulty) {
         }
 
         val flag = if (currentAlpha > alpha) 0 else 2
-        transpositionTable[ttIndex] = TTEntry(hash, depth, currentAlpha, flag, bestMove)
+        ttHashes[ttIndex] = hash
+        ttDepths[ttIndex] = depth
+        ttScores[ttIndex] = currentAlpha
+        ttFlags[ttIndex]  = flag
+        ttMoves[ttIndex]  = bestMove
 
         return currentAlpha
     }
@@ -358,10 +382,10 @@ class AiEngine(private val difficulty: AiDifficulty) {
         return h
     }
 
-    private fun orderMovesForSearch(moves: List<Move>, ttBestMove: Move?, ply: Int): List<Move> {
+    private fun orderMovesForSearch(moves: List<Move>, ttBestMove: Int, ply: Int): List<Move> {
         return moves.sortedByDescending { move ->
             var score = 0
-            if (ttBestMove != null && sameMove(move, ttBestMove)) {
+            if (sameMove(move, ttBestMove)) {
                 score += 1_000_000
             }
             if (move.captured != null) {
@@ -377,11 +401,6 @@ class AiEngine(private val difficulty: AiDifficulty) {
             }
             score
         }
-    }
-
-    private fun sameMove(a: Move?, b: Move?): Boolean {
-        if (a == null || b == null) return false
-        return a.from == b.from && a.to == b.to
     }
 
     private fun captureValue(move: Move): Int {

@@ -2,6 +2,7 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.gameroom
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.navigation.RouteNavigator
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.*
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.GameRepository
 import com.charmflex.xiangqi.engine.ai.AiDifficulty
@@ -22,7 +23,8 @@ import org.koin.core.annotation.Factory
 
 @Factory
 class GameRoomViewModel(
-    private val gameRepository: GameRepository
+    private val gameRepository: GameRepository,
+    private val routeNavigator: RouteNavigator
 ) : ViewModel() {
     private val _state = MutableStateFlow(GameState())
     val state: StateFlow<GameState> = _state.asStateFlow()
@@ -46,6 +48,26 @@ class GameRoomViewModel(
         if (aiColor == PieceColor.RED) {
             triggerAiMove()
         }
+    }
+
+    fun quitConfirmation(show: Boolean) {
+        _state.update {
+            it.copy(
+                quitConfirmation = show
+            )
+        }
+    }
+
+    fun abandonGame() {
+        viewModelScope.launch {
+            if (_state.value.gameMode == GameMode.ONLINE) {
+                _state.value.onlineInfo?.roomId?.let {
+                    gameRepository.abandonGame(it)
+                    routeNavigator.pop()
+                }
+            }
+        }
+
     }
 
     fun startSpectating(roomId: String, redPlayerName: String, blackPlayerName: String) {
@@ -327,16 +349,8 @@ class GameRoomViewModel(
             viewModelScope.launch {
                 println("[GAME] Sending move to server: room=$roomId")
                 gameRepository.sendMove(roomId, move)
-                if (status != GameStatus.PLAYING) {
-                    val result = when (status) {
-                        GameStatus.RED_WINS -> "red_wins"
-                        GameStatus.BLACK_WINS -> "black_wins"
-                        GameStatus.DRAW -> "draw"
-                        else -> return@launch
-                    }
-                    println("[GAME] Reporting game over to server: $result")
-                    gameRepository.reportGameOver(roomId, result, "checkmate")
-                }
+                // Server detects checkmate/stalemate/timeout server-side and broadcasts GAME_OVER.
+                // The client must not report game-over; it waits for the authoritative server signal.
             }
         }
 

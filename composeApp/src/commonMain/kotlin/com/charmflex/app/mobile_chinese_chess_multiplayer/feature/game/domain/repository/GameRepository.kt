@@ -25,6 +25,7 @@ interface GameRepository {
     suspend fun respondToDraw(roomId: String, accepted: Boolean)
     suspend fun joinRoomWs(roomId: String)
     suspend fun watchRoom(roomId: String)
+    suspend fun abandonGame(roomId: String)
     suspend fun reportGameOver(roomId: String, result: String, reason: String)
 }
 
@@ -44,12 +45,22 @@ data class CreateRoomResponse(
 data class BattleRoom(
     val id: String,
     val name: String,
-    val host: Player,
+    val host: Player?,
     val guest: Player? = null,
     val status: String = "waiting",
     val timeControlSeconds: Int = 600,
     val private: Boolean = false
-)
+) {
+    val isPlayingRoom: Boolean = guest != null && host != null
+    val playingCount: Int
+        get() = if (guest != null && host != null) {
+            2
+        } else if (guest == null && host == null) {
+            0
+        } else {
+            1
+        }
+}
 
 @Serializable
 data class ActiveRoomsResponse(
