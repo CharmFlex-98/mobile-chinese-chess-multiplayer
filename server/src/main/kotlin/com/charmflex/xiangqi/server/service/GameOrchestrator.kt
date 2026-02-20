@@ -29,6 +29,24 @@ class GameOrchestrator(
     // -------------------------------------------------------------------------
     fun registerPlayerSession(sessionId: String, player: Player) {
         sessionPlayerMap[sessionId] = player
+
+        val activeRoom = gameService.findActiveRoomForPlayer(player.id)
+        if (activeRoom != null) {
+            val playerColor = if (activeRoom.redPlayer?.id == player.id) "RED" else "BLACK"
+            val opponentName = if (playerColor == "RED") activeRoom.blackPlayer?.name ?: "Opponent"
+                               else activeRoom.redPlayer?.name ?: "Opponent"
+            log.info("[ORCH] Player {} reconnected with active room {}, sending rejoin_available", player.name, activeRoom.id)
+            sessionRegistry.sendToSession(sessionId, WsMessageBuilder.buildGameMessage(
+                WsType.REJOIN_AVAILABLE,
+                RejoinAvailablePayload(
+                    roomId = activeRoom.id,
+                    opponentName = opponentName,
+                    playerColor = playerColor,
+                    redTimeMillis = activeRoom.redTimeMillis,
+                    blackTimeMillis = activeRoom.blackTimeMillis
+                )
+            ))
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -101,8 +119,7 @@ class GameOrchestrator(
                 OpponentDisconnectedPayload(roomId = roomId)
             ), excludeSessionId = sessionId)
             if (gameService.roomHasBot(roomId)) {
-                botService.onGameOver(roomId)
-                gameService.removeRoom(roomId)
+                botService.pauseBotGame(roomId)
             }
         }
     }
@@ -365,7 +382,8 @@ class GameOrchestrator(
             val moves: List<MoveDto>,
             val redTimeMillis: Long,
             val blackTimeMillis: Long,
-            val spectatorAdded: Boolean
+            val spectatorAdded: Boolean,
+            val gameStarted: Boolean
         )
 
         val snap = synchronized(room) {
@@ -385,7 +403,8 @@ class GameOrchestrator(
                 moves = room.moves.toList(),
                 redTimeMillis = room.redTimeMillis,
                 blackTimeMillis = room.blackTimeMillis,
-                spectatorAdded = spectatorAdded
+                spectatorAdded = spectatorAdded,
+                gameStarted = room.gameStarted
             )
         }
 
@@ -425,27 +444,52 @@ class GameOrchestrator(
         gameService.addRoomSession(roomId, sessionId)
         log.info("[ORCH] Room {} sessions: {}", roomId, gameService.getRoomSessionIds(roomId).size)
 
-        broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
-            WsType.OPPONENT_JOINED,
-            OpponentJoinedPayload(roomId = roomId, opponent = player)
-        ), excludeSessionId = sessionId)
-
-        if (snap.status == RoomStatus.PLAYING && snap.redPlayer != null && snap.blackPlayer != null) {
-            val justStarted = gameService.recordGameStart(roomId)
-            if (justStarted) {
-                log.info("[ORCH] Both players in room {}, broadcasting game_started", roomId)
-            } else {
-                log.info("[ORCH] Player {} reconnected to room {}", player.name, roomId)
-            }
-            broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
-                WsType.GAME_STARTED,
-                GameStartedPayload(
+        if (snap.gameStarted) {
+            // Reconnect branch: game already started — send full state and notify opponent
+            log.info("[ORCH] Player {} reconnected to in-progress room {}", player.name, roomId)
+            val red = snap.redPlayer ?: return
+            val black = snap.blackPlayer ?: return
+            sessionRegistry.sendToSession(sessionId, WsMessageBuilder.buildGameMessage(
+                WsType.GAME_STATE,
+                GameStatePayload(
                     roomId = roomId,
-                    redPlayer = snap.redPlayer,
-                    blackPlayer = snap.blackPlayer,
-                    timeControlSeconds = snap.timeControlSeconds
+                    redPlayer = red,
+                    blackPlayer = black,
+                    timeControlSeconds = snap.timeControlSeconds,
+                    moves = snap.moves,
+                    redTimeMillis = snap.redTimeMillis,
+                    blackTimeMillis = snap.blackTimeMillis
                 )
             ))
+            broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
+                WsType.OPPONENT_RECONNECTED,
+                OpponentReconnectedPayload(roomId = roomId)
+            ), excludeSessionId = sessionId)
+            if (gameService.roomHasBot(roomId)) {
+                botService.resumeBotGame(roomId)
+            }
+        } else {
+            // First-join branch
+            broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
+                WsType.OPPONENT_JOINED,
+                OpponentJoinedPayload(roomId = roomId, opponent = player)
+            ), excludeSessionId = sessionId)
+
+            if (snap.status == RoomStatus.PLAYING && snap.redPlayer != null && snap.blackPlayer != null) {
+                val justStarted = gameService.recordGameStart(roomId)
+                if (justStarted) {
+                    log.info("[ORCH] Both players in room {}, broadcasting game_started", roomId)
+                    broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
+                        WsType.GAME_STARTED,
+                        GameStartedPayload(
+                            roomId = roomId,
+                            redPlayer = snap.redPlayer,
+                            blackPlayer = snap.blackPlayer,
+                            timeControlSeconds = snap.timeControlSeconds
+                        )
+                    ))
+                }
+            }
         }
     }
 

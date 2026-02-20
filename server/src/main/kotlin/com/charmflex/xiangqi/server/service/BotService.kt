@@ -304,6 +304,22 @@ class BotService(
         return bot.copy(player = bot.player.copy(id = "bot-${UUID.randomUUID()}"))
     }
 
+    fun pauseBotGame(roomId: String) {
+        log.info("[BOT] Pausing bot game for room {}", roomId)
+        activeBotGames.remove(roomId)?.cancel()
+        // botBoards / botColors / botPlayers stay intact for resume
+    }
+
+    fun resumeBotGame(roomId: String) {
+        val room = gameService.getRoom(roomId) ?: return
+        val botColor = botColors[roomId] ?: return
+        val currentTurnColor = if (room.currentTurn == "RED") PieceColor.RED else PieceColor.BLACK
+        log.info("[BOT] Resuming bot game for room {} (botColor={} currentTurn={})", roomId, botColor, room.currentTurn)
+        if (currentTurnColor == botColor) {
+            scheduleBotMove(roomId)
+        }
+    }
+
     fun onGameOver(roomId: String) {
         log.info("[BOT] Game over notification for room {}", roomId)
         cleanupBotGame(roomId)

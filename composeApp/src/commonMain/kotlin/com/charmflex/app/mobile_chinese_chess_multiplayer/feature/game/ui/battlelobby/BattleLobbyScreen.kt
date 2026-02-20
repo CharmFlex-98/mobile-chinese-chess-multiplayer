@@ -173,6 +173,35 @@ fun BattleLobbyScreen(
         )
     }
 
+    // Rejoin dialog
+    state.rejoinInfo?.let { info ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onRejoinDeclined() },
+            title = { Text("Resume Game?", color = Color.White) },
+            text = {
+                Text(
+                    "You have an unfinished game against ${info.opponentName}. Continue or forfeit?",
+                    style = AppTypography.bodySmall,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onRejoinAccepted() },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black)
+                ) {
+                    Text("Continue", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.onRejoinDeclined() }) {
+                    Text("Forfeit", color = Color.White)
+                }
+            },
+            containerColor = SurfaceDark
+        )
+    }
+
     // Error snackbar
     state.error?.let { error ->
         LaunchedEffect(error) {

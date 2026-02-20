@@ -12,6 +12,7 @@ interface GameRepository {
     fun subscribeMatchRoomEvents(roomId: String): Flow<WsServerMessage>
     fun subscribeMatchingEvents(): Flow<WsServerMessage>
     fun subscribeGlobalChat(): Flow<WsServerMessage>
+    fun subscribeRejoinEvents(): Flow<WsServerMessage>
     suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse>
     suspend fun getActiveRooms(): Result<List<BattleRoom>>
     suspend fun joinRoom(roomId: String): Result<BattleRoom>

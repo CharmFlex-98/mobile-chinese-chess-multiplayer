@@ -32,6 +32,7 @@ class GameRoomViewModel(
     private var aiEngine: AiEngine? = null
     private var aiColor: PieceColor = PieceColor.BLACK
     private var onlineEventsJob: Job? = null
+    private var reconnectJob: Job? = null
 
     fun startLocalGame() {
         _state.value = GameState(gameMode = GameMode.LOCAL_2P)
@@ -89,6 +90,7 @@ class GameRoomViewModel(
             gameRepository.watchRoom(roomId)
         }
         observeOnlineEvents(roomId)
+        observeConnectionForReconnect(roomId)
     }
 
     fun startOnlineGame(roomId: String, opponentName: String, playerColor: PieceColor, isCreator: Boolean = false) {
@@ -109,6 +111,24 @@ class GameRoomViewModel(
             gameRepository.joinRoomWs(roomId)
         }
         observeOnlineEvents(roomId)
+        observeConnectionForReconnect(roomId)
+    }
+
+    private fun observeConnectionForReconnect(roomId: String) {
+        reconnectJob?.cancel()
+        reconnectJob = viewModelScope.launch {
+            var wasConnected = true
+            gameRepository.isConnected().collect { connected ->
+                if (!connected) {
+                    wasConnected = false
+                } else if (!wasConnected) {
+                    // WS just came back — re-send room_join to get GAME_STATE from server
+                    println("[GAME] WS reconnected, rejoining room=$roomId")
+                    wasConnected = true
+                    gameRepository.joinRoomWs(roomId)
+                }
+            }
+        }
     }
 
     private fun observeOnlineEvents(roomId: String) {
@@ -453,5 +473,6 @@ class GameRoomViewModel(
     override fun onCleared() {
         super.onCleared()
         onlineEventsJob?.cancel()
+        reconnectJob?.cancel()
     }
 }
