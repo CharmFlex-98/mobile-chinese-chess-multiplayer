@@ -9,7 +9,8 @@ import java.util.concurrent.ConcurrentHashMap
 @Service
 class SessionRegistry {
     private val log = LoggerFactory.getLogger(SessionRegistry::class.java)
-    private val sessions = ConcurrentHashMap<String, WebSocketSession>()
+    val sessions = ConcurrentHashMap<String, WebSocketSession>()
+    val lastHeartbeatsMap = ConcurrentHashMap<String, Long>()
 
     fun register(sessionId: String, session: WebSocketSession) {
         sessions[sessionId] = session

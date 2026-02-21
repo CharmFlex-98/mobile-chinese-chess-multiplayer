@@ -7,6 +7,7 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.WsServerM
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.usePost
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.utils.resultOf
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.model.MoveDto
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.ActiveGameInfo
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.ActiveRoomsResponse
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.BattleRoom
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomRequest
@@ -65,8 +66,16 @@ class GameRepositoryImpl(
         return globalChatChannel.subscribeChannel()
     }
 
-    override fun subscribeRejoinEvents(): Flow<WsServerMessage> =
-        gameChannel.subscribeChannel().filter { it is RejoinAvailable }
+    override suspend fun getMyActiveGame(): ActiveGameInfo? {
+        return try {
+            val response: ActiveGameInfo = networkClient.useGet("/api/me/game") {
+                add(NetworkAttributes.needToken)
+            }
+            response
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     override suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse> {
         return resultOf {

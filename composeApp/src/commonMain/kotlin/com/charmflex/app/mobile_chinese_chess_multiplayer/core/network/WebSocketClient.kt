@@ -13,6 +13,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -44,48 +45,51 @@ class WebSocketClient(
     suspend fun connect() {
         coroutineScope {
             connectionJob?.cancel()
-            val url = buildWsUrl()
-            println("[WS] Connecting to $url ...")
             connectionJob = launch {
-                try {
-                    _connectionState.value = false
-                    httpClient.webSocket(urlString = url) {
-                        session = this
-                        _connectionState.value = true
-                        println("[WS] Connected successfully!")
-
-                        try {
-                            for (frame in incoming) {
-                                when (frame) {
-                                    is Frame.Text -> {
-                                        val text = frame.readText()
-                                        println("[WS] <<< RECV: $text")
-                                        val msg = parseServerMessage(text)
-                                        if (msg != null) {
-                                            println("[WS] Parsed: ${msg::class.simpleName}")
-                                            _serverMessages.emit(msg)
-                                        } else {
-                                            println("[WS] WARN: Could not parse message")
+                while (true) {
+                    val url = buildWsUrl()
+                    println("[WS] Connecting to $url ...")
+                    try {
+                        _connectionState.value = false
+                        httpClient.webSocket(urlString = url) {
+                            session = this
+                            _connectionState.value = true
+                            println("[WS] Connected successfully!")
+                            try {
+                                for (frame in incoming) {
+                                    when (frame) {
+                                        is Frame.Text -> {
+                                            val text = frame.readText()
+                                            println("[WS] <<< RECV: $text")
+                                            val msg = parseServerMessage(text)
+                                            if (msg != null) {
+                                                println("[WS] Parsed: ${msg::class.simpleName}")
+                                                _serverMessages.emit(msg)
+                                            } else {
+                                                println("[WS] WARN: Could not parse message")
+                                            }
                                         }
+                                        else -> {}
                                     }
-                                    else -> {}
                                 }
+                            } finally {
+                                println("[WS] Connection closed (incoming loop ended)")
+                                session = null
+                                _connectionState.value = false
                             }
-                        } finally {
-                            println("[WS] Connection closed (incoming loop ended)")
-                            session = null
-                            _connectionState.value = false
                         }
+                        println("[WS] Server closed connection, retrying in 5s")
+                    } catch (e: CancellationException) {
+                        println("[WS] Connection cancelled, stopping retry")
+                        session = null
+                        _connectionState.value = false
+                        throw e
+                    } catch (e: Exception) {
+                        println("[WS] Connection error: ${e::class.simpleName}: ${e.message}, retrying in 5s")
+                        session = null
+                        _connectionState.value = false
                     }
-                } catch (e: CancellationException) {
-                    println("[WS] Connection cancelled")
-                    session = null
-                    _connectionState.value = false
-                    throw e
-                } catch (e: Exception) {
-                    println("[WS] Connection error: ${e::class.simpleName}: ${e.message}")
-                    session = null
-                    _connectionState.value = false
+                    delay(5_000)
                 }
             }
         }
@@ -134,7 +138,9 @@ class WebSocketClient(
     companion object {
         fun createWsClient(): HttpClient {
             return HttpClient {
-                install(WebSockets.Plugin)
+                install(WebSockets.Plugin) {
+                    pingIntervalMillis = 10_000
+                }
             }
         }
     }

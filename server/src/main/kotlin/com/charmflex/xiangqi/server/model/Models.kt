@@ -124,3 +124,11 @@ data class BattleRoomResponse(
 )
 
 data class ActiveRoomsResponse(val rooms: List<BattleRoomResponse>)
+
+data class ActiveGameResponse(
+    val roomId: String,
+    val opponentName: String,
+    val playerColor: String,
+    val redTimeMillis: Long,
+    val blackTimeMillis: Long
+)
