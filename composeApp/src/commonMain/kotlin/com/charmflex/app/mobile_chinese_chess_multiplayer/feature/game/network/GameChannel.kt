@@ -42,7 +42,6 @@ class GameChannel(
                     "spectator_left" -> wsJson.decodeFromJsonElement<SpectatorLeft>(it.payload)
                     "xp_update" -> wsJson.decodeFromJsonElement<XpUpdate>(it.payload)
                     "error" -> wsJson.decodeFromJsonElement<Error>(it.payload)
-                    "rejoin_available" -> wsJson.decodeFromJsonElement<RejoinAvailable>(it.payload)
                     else -> null
                 }
             }

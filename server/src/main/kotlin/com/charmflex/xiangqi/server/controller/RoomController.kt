@@ -52,6 +52,27 @@ class RoomController(
         )
     }
 
+    @GetMapping("/me/game")
+    fun getMyActiveGame(authentication: Authentication): ResponseEntity<ActiveGameResponse> {
+        val jwt = (authentication.principal as? Jwt) ?: throw UnauthorizedException
+        val userId = jwt.subject
+        val room = gameService.findActiveRoomForPlayer(userId)
+            ?: return ResponseEntity.notFound().build()
+        val playerColor = if (room.redPlayer?.id == userId) "RED" else "BLACK"
+        val opponentName = if (playerColor == "RED") room.blackPlayer?.name ?: "Opponent"
+                           else room.redPlayer?.name ?: "Opponent"
+        log.info("[API] GET /me/game -> room={} player={} color={}", room.id, userId.take(8), playerColor)
+        return ResponseEntity.ok(
+            ActiveGameResponse(
+                roomId = room.id,
+                opponentName = opponentName,
+                playerColor = playerColor,
+                redTimeMillis = room.redTimeMillis,
+                blackTimeMillis = room.blackTimeMillis
+            )
+        )
+    }
+
     @GetMapping("/rooms")
     fun getActiveRooms(): ResponseEntity<ActiveRoomsResponse> {
         val rooms = gameService.getActiveRooms().map { it.toResponse() }

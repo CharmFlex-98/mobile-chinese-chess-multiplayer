@@ -12,7 +12,8 @@ class WebSocketConfig(
     private val webSocketHandler: WebSocketHandler
 ) : WebSocketConfigurer {
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
-        registry.addHandler(webSocketHandler, "/ws")
+        registry
+            .addHandler(webSocketHandler, "/ws")
             .setAllowedOrigins("*")
     }
 }

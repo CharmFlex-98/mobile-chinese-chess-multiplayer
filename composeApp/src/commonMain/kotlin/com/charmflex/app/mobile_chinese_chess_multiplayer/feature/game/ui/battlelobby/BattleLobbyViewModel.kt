@@ -3,7 +3,7 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.ui.battl
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.*
-import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.RejoinAvailable
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.ActiveGameInfo
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.BattleRoom
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomRequest
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.GameRepository
@@ -32,7 +32,7 @@ class BattleLobbyViewModel(
         observeConnection()
         observeAuthState()
         loadActiveRooms()
-        observeRejoin()
+        checkForActiveGame()
     }
 
     private fun observeConnection() {
@@ -248,16 +248,11 @@ class BattleLobbyViewModel(
         }
     }
 
-    private fun observeRejoin() {
+    private fun checkForActiveGame() {
         viewModelScope.launch {
-            gameRepository.subscribeRejoinEvents().collect { msg ->
-                if (msg is RejoinAvailable) {
-                    println("[LOBBY] Rejoin available: room=${msg.roomId} opponent=${msg.opponentName}")
-                    _state.update {
-                        it.copy(rejoinInfo = RejoinInfo(msg.roomId, msg.opponentName, msg.playerColor))
-                    }
-                }
-            }
+            val info = gameRepository.getMyActiveGame() ?: return@launch
+            println("[LOBBY] Active game found: room=${info.roomId} opponent=${info.opponentName}")
+            _state.update { it.copy(rejoinInfo = RejoinInfo(info.roomId, info.opponentName, info.playerColor)) }
         }
     }
 

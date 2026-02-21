@@ -29,24 +29,6 @@ class GameOrchestrator(
     // -------------------------------------------------------------------------
     fun registerPlayerSession(sessionId: String, player: Player) {
         sessionPlayerMap[sessionId] = player
-
-        val activeRoom = gameService.findActiveRoomForPlayer(player.id)
-        if (activeRoom != null) {
-            val playerColor = if (activeRoom.redPlayer?.id == player.id) "RED" else "BLACK"
-            val opponentName = if (playerColor == "RED") activeRoom.blackPlayer?.name ?: "Opponent"
-                               else activeRoom.redPlayer?.name ?: "Opponent"
-            log.info("[ORCH] Player {} reconnected with active room {}, sending rejoin_available", player.name, activeRoom.id)
-            sessionRegistry.sendToSession(sessionId, WsMessageBuilder.buildGameMessage(
-                WsType.REJOIN_AVAILABLE,
-                RejoinAvailablePayload(
-                    roomId = activeRoom.id,
-                    opponentName = opponentName,
-                    playerColor = playerColor,
-                    redTimeMillis = activeRoom.redTimeMillis,
-                    blackTimeMillis = activeRoom.blackTimeMillis
-                )
-            ))
-        }
     }
 
     // -------------------------------------------------------------------------

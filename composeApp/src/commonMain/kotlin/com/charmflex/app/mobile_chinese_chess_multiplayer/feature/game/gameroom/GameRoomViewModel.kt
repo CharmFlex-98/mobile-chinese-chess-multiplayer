@@ -119,6 +119,20 @@ class GameRoomViewModel(
         reconnectJob = viewModelScope.launch {
             var wasConnected = true
             gameRepository.isConnected().collect { connected ->
+                // Update connection state UI
+                _state.update {
+                    it.copy(
+                        onlineInfo = it.onlineInfo?.copy(
+                            connectionState = if (connected) {
+                                ConnectionState.CONNECTED
+                            } else {
+                                ConnectionState.DISCONNECTED
+                            }
+                        )
+                    )
+                }
+
+
                 if (!connected) {
                     wasConnected = false
                 } else if (!wasConnected) {

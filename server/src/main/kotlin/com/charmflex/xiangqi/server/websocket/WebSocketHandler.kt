@@ -7,6 +7,7 @@ import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.CloseStatus
+import org.springframework.web.socket.PongMessage
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
 import org.springframework.web.socket.handler.TextWebSocketHandler
@@ -83,6 +84,10 @@ class WebSocketHandler(
         sessionRegistry.unregister(session.id)
         orchestrator.onConnectionClosed(session.id)
         log.info("[WS] Remaining sessions: {}", sessionRegistry.getAllSessionIds().size)
+    }
+
+    override fun handlePongMessage(session: WebSocketSession, message: PongMessage) {
+        sessionRegistry.lastHeartbeatsMap[session.id] = System.currentTimeMillis()
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
