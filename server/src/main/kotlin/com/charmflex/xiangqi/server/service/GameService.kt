@@ -29,15 +29,6 @@ class GameService(
         return player
     }
 
-    fun removeStaledRoom() {
-        val currentTime = System.currentTimeMillis()
-        rooms.values.filter {
-            it.gameStarted && (currentTime - it.lastMoveTimestamp) > 1_800_000
-        }.forEach {
-            finishGame(it.id)
-        }
-    }
-
     // -------------------------------------------------------------------------
     // Room management
     // -------------------------------------------------------------------------

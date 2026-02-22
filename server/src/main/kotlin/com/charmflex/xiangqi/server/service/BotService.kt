@@ -294,39 +294,52 @@ class BotService(
 
         activeBotGames.remove(roomId)?.cancel()
         val job = scope.launch {
-            val delayMs = (bot.minDelayMs..bot.maxDelayMs).random()
-            delay(delayMs)
-            if (!isActive) return@launch
+            try {
+                val delayMs = (bot.minDelayMs..bot.maxDelayMs).random()
+                delay(delayMs)
+                if (!isActive) return@launch
 
-            val board = botBoards[roomId] ?: return@launch
-            val room = gameService.getRoom(roomId) ?: return@launch
-            if (room.status != RoomStatus.PLAYING) return@launch
+                val board = botBoards[roomId] ?: run { cleanupBotGame(roomId); return@launch }
+                val room = gameService.getRoom(roomId) ?: run { cleanupBotGame(roomId); return@launch }
+                if (room.status != RoomStatus.PLAYING) { cleanupBotGame(roomId); return@launch }
 
-            // Compute move
-            val engine = AiEngine(bot.difficulty)
-            val bestMove = engine.findBestMove(board, botColor)
-            if (bestMove == null) {
-                log.warn("[BOT] No move found for bot {} in room {}", bot.player.name, roomId)
-                return@launch
-            }
+                // Compute move
+                val engine = AiEngine(bot.difficulty)
+                val bestMove = engine.findBestMove(board, botColor)
+                if (bestMove == null) {
+                    log.warn("[BOT] No move found for bot {} in room {}", bot.player.name, roomId)
+                    activeBotGames.remove(roomId) // free the slot; stale-sweep will end the room
+                    return@launch
+                }
 
-            // Apply move to local board
-            val newBoard = board.applyMove(bestMove)
-            botBoards[roomId] = newBoard
+                // Apply move to local board
+                val newBoard = board.applyMove(bestMove)
+                botBoards[roomId] = newBoard
 
-            // Delegate to orchestrator: applies move, broadcasts, handles game-over + XP + cleanup
-            val moveDto = MoveDto(bestMove.from.row, bestMove.from.col, bestMove.to.row, bestMove.to.col)
-            val moveResult = orchestrator.applyBotMove(roomId, moveDto, bot.player.id) ?: return@launch
+                // Delegate to orchestrator: applies move, broadcasts, handles game-over + XP + cleanup
+                val moveDto = MoveDto(bestMove.from.row, bestMove.from.col, bestMove.to.row, bestMove.to.col)
+                val moveResult = orchestrator.applyBotMove(roomId, moveDto, bot.player.id) ?: run {
+                    log.warn("[BOT] Move rejected for room {}, bot={} — ending game", roomId, bot.player.name)
+                    botBoards[roomId] = board // revert local board
+                    gameService.finishGame(roomId)
+                    cleanupBotGame(roomId)
+                    return@launch
+                }
 
-            // For bot-vs-bot games, trigger the next bot's move only if game is still ongoing
-            val gameStillRunning = moveResult.gameStatus == GameStatus.PLAYING && !moveResult.timedOut
-            if (isBotVsBotGame(roomId) && gameStillRunning) {
-                val bots = botVsBotRooms[roomId] ?: return@launch
-                val opponentColor = botColor.opponent
-                val nextBot = if (opponentColor == PieceColor.RED) bots.first else bots.second
-                botColors[roomId] = opponentColor
-                botPlayers[roomId] = nextBot
-                scheduleBotMove(roomId)
+                // For bot-vs-bot games, trigger the next bot's move only if game is still ongoing
+                val gameStillRunning = moveResult.gameStatus == GameStatus.PLAYING && !moveResult.timedOut
+                if (isBotVsBotGame(roomId) && gameStillRunning) {
+                    val bots = botVsBotRooms[roomId] ?: return@launch
+                    val opponentColor = botColor.opponent
+                    val nextBot = if (opponentColor == PieceColor.RED) bots.first else bots.second
+                    botColors[roomId] = opponentColor
+                    botPlayers[roomId] = nextBot
+                    scheduleBotMove(roomId)
+                }
+            } catch (e: Exception) {
+                log.error("[BOT] Unexpected error in bot loop for room {}, cleaning up", roomId, e)
+                gameService.finishGame(roomId)
+                cleanupBotGame(roomId)
             }
         }
         activeBotGames[roomId] = job
@@ -376,8 +389,17 @@ class BotService(
             delay(5_000)
 
             while (isActive) {
-                val activeCount = activeBotGames.count { (roomId, job) ->
-                    job.isActive && isBotVsBotGame(roomId)
+                // Sweep: clean up botVsBotRooms entries whose room is gone or no longer PLAYING
+                botVsBotRooms.keys.toList().forEach { roomId ->
+                    val room = gameService.getRoom(roomId)
+                    if (room == null || room.status != RoomStatus.PLAYING) {
+                        log.info("[BOT] Sweeping stale bot-vs-bot room {}", roomId)
+                        cleanupBotGame(roomId)
+                    }
+                }
+
+                val activeCount = botVsBotRooms.keys.count { roomId ->
+                    gameService.getRoom(roomId)?.status == RoomStatus.PLAYING
                 }
 
                 val targetGames = (5..10).random()
@@ -394,17 +416,22 @@ class BotService(
     }
 
     fun idleBots(): List<BotPlayer> {
-        return botPool.filter {
-            val bots = botVsBotRooms.values.flatMap { it.toList().map { it.player.id } }
-            !bots.contains(it.player.id)
-        }
+        // Bots in bot-vs-bot: both red and black are stored in botVsBotRooms
+        val botVsBotIds = botVsBotRooms.values
+            .flatMap { (red, black) -> listOf(red.player.id, black.player.id) }
+            .toSet()
+        // Bots in bot-vs-human: stored in botPlayers for rooms NOT in botVsBotRooms
+        // (bot-vs-bot rooms also have botPlayers[roomId] = current-turn bot, already covered above)
+        val botVsHumanIds = botPlayers.entries
+            .filter { (roomId, _) -> !botVsBotRooms.containsKey(roomId) }
+            .map { it.value.player.id }
+            .toSet()
+        val activeBotIds = botVsBotIds + botVsHumanIds
+        return botPool.filter { it.player.id !in activeBotIds }
     }
 
     private fun createBotVsBotGame() {
-        val availableBots = botPool.shuffled().filter {
-            val bots = botVsBotRooms.values.flatMap { it.toList().map { it.player.id } }
-            !bots.contains(it.player.id)
-        }
+        val availableBots = idleBots().shuffled()
         if (availableBots.size < 2) return
 
         // Skip if not enough bots under daily limit
