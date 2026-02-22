@@ -239,6 +239,9 @@ class BotService(
             // Increment daily counter for the chosen bot
             incrementBotDailyCountByName(bot.player.name)
 
+            // Remove completed job from the map so it doesn't accumulate indefinitely
+            pendingBotMatches.remove(sessionId)
+
             // Start bot game loop
             startBotGame(room.id, bot, botColor)
         }
@@ -490,7 +493,10 @@ class BotService(
 
     fun resumeBotGame(roomId: String) {
         val room = gameService.getRoom(roomId) ?: return
-        val botColor = botColors[roomId] ?: return
+        val botColor = botColors[roomId] ?: run {
+            log.warn("[BOT] resumeBotGame: botColors missing for room {} — bot maps were cleaned up, skipping", roomId)
+            return
+        }
         val currentTurnColor = if (room.currentTurn == "RED") PieceColor.RED else PieceColor.BLACK
         if (currentTurnColor == botColor) {
             scheduleBotMove(roomId)
@@ -512,4 +518,10 @@ class BotService(
     fun isBotSession(sessionId: String): Boolean = sessionId.startsWith("bot-")
 
     fun hasBot(roomId: String): Boolean = botPlayers.containsKey(roomId)
+
+    fun updateBotInPool(updatedPlayer: Player) {
+        botPool = botPool.map {
+            if (it.player.id == updatedPlayer.id) it.copy(player = updatedPlayer) else it
+        }
+    }
 }

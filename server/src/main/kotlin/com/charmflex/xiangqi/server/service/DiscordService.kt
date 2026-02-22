@@ -101,6 +101,11 @@ class DiscordService(
         sendToRoom(roomId, "🏠 Room `$roomName` (`$roomId`) destroyed by creator **$creatorName** while waiting")
     }
 
+    fun notifyCleanStaledRoom(roomId: String, roomName: String) {
+        val msg = "🏠 Room `$roomName` (${roomId}) is clean up by system"
+        enqueueWebhook(msg)
+    }
+
     fun notifyRoomJoined(roomId: String, roomName: String, joinerId: String, joiner: String) {
         sendToRoom(roomId, "⚔️ **${joiner} ($joinerId)** joined the room — `$roomName` (`$roomId`)")
     }
@@ -182,10 +187,11 @@ class DiscordService(
         }
     }
 
-    private fun enqueueWebhook(content: String, threadId: String) {
+    private fun enqueueWebhook(content: String, threadId: String? = null) {
         if (webhookUrl.isBlank()) return
         val body = objectMapper.writeValueAsString(mapOf("content" to content))
-        queue.offer(QueuedRequest(buildPostRequest("$webhookUrl?thread_id=$threadId", body)))
+        val url = if (threadId != null) "$webhookUrl?thread_id=$threadId" else webhookUrl
+        queue.offer(QueuedRequest(buildPostRequest(url, body)))
     }
 
     private fun buildPostRequest(url: String, body: String): HttpRequest =

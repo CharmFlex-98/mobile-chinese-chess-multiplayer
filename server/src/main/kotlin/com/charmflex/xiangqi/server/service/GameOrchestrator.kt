@@ -535,6 +535,8 @@ class GameOrchestrator(
         gameService.rooms.values.filter {
             it.gameStarted && (currentTime - it.lastMoveTimestamp) > 1_800_000
         }.forEach {
+            log.warn("remove staled room. RoomID = ${it.id}")
+            discordService.notifyCleanStaledRoom(roomId = it.id, roomName = it.name)
             finishRoom(it.id)
         }
     }
@@ -551,8 +553,9 @@ class GameOrchestrator(
         } ?: return
 
         if (winnerId.startsWith("bot-")) {
-            // Bot wins: persist XP to DB for leaderboard, but no WS notification (no real session)
-            persistenceService.persistXpGain(winnerId, xpGain)
+            // Bot wins: persist XP to DB for leaderboard and sync in-memory botPool
+            val updatedBot = persistenceService.persistXpGain(winnerId, xpGain)
+            if (updatedBot != null) botService.updateBotInPool(updatedBot)
             return
         }
 
