@@ -1,6 +1,8 @@
 package com.charmflex.xiangqi.server.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import jakarta.annotation.PostConstruct
+import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -9,6 +11,8 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
 
 @Service
 class DiscordService(
@@ -20,6 +24,74 @@ class DiscordService(
     private val objectMapper = ObjectMapper()
     // roomId -> Discord thread channel ID
     private val roomThreads = ConcurrentHashMap<String, String>()
+
+    private data class QueuedRequest(
+        val request: HttpRequest,
+        val onSuccess: ((HttpResponse<String>) -> Unit)? = null
+    )
+
+    private val queue = LinkedBlockingQueue<QueuedRequest>()
+    private val dispatcher = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "discord-queue").also { it.isDaemon = true }
+    }
+    // messages buffered while thread creation is in-flight
+    private val pendingByRoom = ConcurrentHashMap<String, MutableList<String>>()
+    // guards the check-then-add / store-then-flush pair
+    private val threadRegistryLock = Any()
+
+    @PostConstruct
+    fun startDispatcher() {
+        dispatcher.submit { drainLoop() }
+    }
+
+    @PreDestroy
+    fun shutdown() {
+        dispatcher.shutdownNow()
+    }
+
+    private fun drainLoop() {
+        while (!Thread.currentThread().isInterrupted) {
+            try {
+                dispatchWithRetry(queue.take())
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
+        }
+    }
+
+    private fun dispatchWithRetry(task: QueuedRequest) {
+        while (true) {
+            try {
+                val response = httpClient.send(task.request, HttpResponse.BodyHandlers.ofString())
+                when (response.statusCode()) {
+                    in 200..299 -> { task.onSuccess?.invoke(response); return }
+                    429 -> {
+                        val retryAfterMs = parseRetryAfter(response.body())
+                        log.warn("[DISCORD] Rate limited — retrying after {}ms", retryAfterMs)
+                        Thread.sleep(retryAfterMs)
+                    }
+                    else -> {
+                        log.warn("[DISCORD] Request failed: status={}, body={}", response.statusCode(), response.body())
+                        return
+                    }
+                }
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            } catch (e: Exception) {
+                log.warn("[DISCORD] Request error: {}", e.message)
+                return
+            }
+        }
+    }
+
+    private fun parseRetryAfter(body: String): Long {
+        return try {
+            (objectMapper.readTree(body)["retry_after"]?.asDouble() ?: 1.0)
+                .times(1000).toLong().coerceAtLeast(500)
+        } catch (_: Exception) { 1000L }
+    }
 
     fun notifyRoomCreated(roomId: String, roomName: String, creatorId: String, creatorName: String) {
         createThread(roomId, "Room: $roomName", "🏠 Room created by **$creatorName ($creatorId)** — `$roomName` (`$roomId`) · waiting for opponent")
@@ -57,16 +129,13 @@ class DiscordService(
             log.warn("[DISCORD] Bot token not configured — skipping thread delete for threadId={}", threadId)
             return
         }
-        try {
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create("https://discord.com/api/v10/channels/$threadId"))
-                .header("Authorization", "Bot $botToken")
-                .DELETE()
-                .build()
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-        } catch (e: Exception) {
-            log.warn("[DISCORD] Failed to delete thread {}: {}", threadId, e.message)
-        }
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create("https://discord.com/api/v10/channels/$threadId"))
+            .header("Authorization", "Bot $botToken")
+            .DELETE().build()
+        queue.offer(QueuedRequest(request) { response ->
+            log.info("[DISCORD] Deleted thread: threadId={}, status={}", threadId, response.statusCode())
+        })
     }
 
     /**
@@ -75,64 +144,54 @@ class DiscordService(
      * route subsequent room events to the same thread.
      *
      * Requires the webhook to target a Discord **Forum channel**.
+     * Fully async — the onSuccess callback stores the threadId and flushes any buffered messages.
      */
     private fun createThread(roomId: String, threadName: String, content: String) {
         if (webhookUrl.isBlank()) return
-        try {
-            val body = objectMapper.writeValueAsString(
-                mapOf("content" to content, "thread_name" to threadName)
-            )
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create("$webhookUrl?wait=true"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build()
-            // Synchronous so we capture threadId before any follow-up events arrive
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        val body = objectMapper.writeValueAsString(mapOf("content" to content, "thread_name" to threadName))
+        val request = buildPostRequest("$webhookUrl?wait=true", body)
+        queue.offer(QueuedRequest(request) { response ->
             val threadId = objectMapper.readTree(response.body())["channel_id"]?.asText()
             if (!threadId.isNullOrBlank()) {
-                roomThreads[roomId] = threadId
+                synchronized(threadRegistryLock) {
+                    roomThreads[roomId] = threadId
+                    pendingByRoom.remove(roomId)?.forEach { msg ->
+                        enqueueWebhook(msg, threadId)
+                    }
+                }
+                log.info("[DISCORD] Thread created for room {}: threadId={}", roomId, threadId)
             } else {
                 log.warn("[DISCORD] Thread creation for room {} missing channel_id — response: {}", roomId, response.body())
             }
-        } catch (e: Exception) {
-            log.warn("[DISCORD] Failed to create thread for room {}: {}", roomId, e.message)
-        }
+        })
     }
 
     /**
-     * Posts a message to the room's thread. Falls back to the main channel if no thread
-     * exists for the room (e.g. after a server restart or thread creation failure).
+     * Posts a message to the room's thread. Buffers the message if the thread is not yet ready
+     * (i.e. createThread is still in-flight) and flushes once the thread ID is known.
      */
     private fun sendToRoom(roomId: String, content: String) {
-        val threadId = roomThreads[roomId]
-        sendWebhook(content, threadId)
+        synchronized(threadRegistryLock) {
+            val threadId = roomThreads[roomId]
+            if (threadId != null) {
+                enqueueWebhook(content, threadId)
+            } else {
+                pendingByRoom.computeIfAbsent(roomId) { mutableListOf() }.add(content)
+                log.debug("[DISCORD] Buffered message for room {} — thread not yet created", roomId)
+            }
+        }
     }
 
-    private fun sendWebhook(content: String, threadId: String? = null) {
+    private fun enqueueWebhook(content: String, threadId: String) {
         if (webhookUrl.isBlank()) return
-        if (threadId == null) {
-            log.warn("[DISCORD] Dropping webhook message — no threadId available (thread creation may have failed)")
-            return
-        }
-        try {
-            val body = objectMapper.writeValueAsString(mapOf("content" to content))
-            val url = "$webhookUrl?thread_id=$threadId"
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build()
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .whenComplete { response, ex ->
-                    if (ex != null) {
-                        log.warn("[DISCORD] Webhook send failed: {}", ex.message)
-                    } else if (response.statusCode() !in 200..299) {
-                        log.warn("[DISCORD] Webhook returned non-2xx: status={}, body={}", response.statusCode(), response.body())
-                    }
-                }
-        } catch (e: Exception) {
-            log.warn("[DISCORD] Failed to send webhook: {}", e.message)
-        }
+        val body = objectMapper.writeValueAsString(mapOf("content" to content))
+        queue.offer(QueuedRequest(buildPostRequest("$webhookUrl?thread_id=$threadId", body)))
     }
+
+    private fun buildPostRequest(url: String, body: String): HttpRequest =
+        HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build()
 }
