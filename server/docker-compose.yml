@@ -1,5 +1,5 @@
 services:
   app:
-    image: charmflex/server-flexiexpensesmanager:latest
+    image: charmflex/server-xiangqi-server:latest
     ports:
       - "3012:8080"
