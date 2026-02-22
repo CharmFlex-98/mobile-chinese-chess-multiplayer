@@ -17,6 +17,7 @@ jobs:
       - name: build service image and publish
         run: |
           echo "building services image"
+          cd server
           chmod +x ./gradlew
           ./gradlew bootBuildImage
           echo "done building..."
