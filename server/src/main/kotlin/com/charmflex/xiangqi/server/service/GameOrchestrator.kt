@@ -122,7 +122,7 @@ class GameOrchestrator(
                 handleMakeMove(sessionId, roomId, parseMoveDto(moveObj))
             }
             type == WsType.QUEUE_JOIN -> {
-                val timeControl = payload["timeControlSeconds"]?.jsonPrimitive?.int ?: 600
+                val timeControl = payload["timeControlSeconds"]?.jsonPrimitive?.int ?: 1800
                 handleQueueJoin(sessionId, timeControl)
             }
             type == WsType.QUEUE_LEAVE -> handleQueueLeave(sessionId)

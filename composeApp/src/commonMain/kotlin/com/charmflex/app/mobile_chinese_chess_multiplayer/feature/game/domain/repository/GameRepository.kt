@@ -16,7 +16,7 @@ interface GameRepository {
     suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse>
     suspend fun getActiveRooms(): Result<List<BattleRoom>>
     suspend fun joinRoom(roomId: String, password: String? = null): Result<BattleRoom>
-    suspend fun joinMatchmaking(timeControlSeconds: Int = 600)
+    suspend fun joinMatchmaking(timeControlSeconds: Int = 1800)
     suspend fun leaveMatchmaking()
     suspend fun sendMove(roomId: String, move: Move)
     suspend fun sendChat(roomId: String, message: String)
@@ -35,7 +35,7 @@ interface GameRepository {
 @Serializable
 data class CreateRoomRequest(
     val name: String,
-    val timeControlSeconds: Int = 600,
+    val timeControlSeconds: Int = 1800,
     val isPrivate: Boolean = false,
     val password: String? = null
 )
@@ -55,7 +55,7 @@ data class BattleRoom(
     val host: Player?,
     val guest: Player? = null,
     val status: String = "waiting",
-    val timeControlSeconds: Int = 600,
+    val timeControlSeconds: Int = 1800,
     val private: Boolean = false,
     val hasPassword: Boolean = false
 ) {

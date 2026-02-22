@@ -91,7 +91,7 @@ data class GameRoom(
     var redPlayer: Player? = null,
     var blackPlayer: Player? = null,
     var status: RoomStatus = RoomStatus.WAITING,
-    val timeControlSeconds: Int = 600,
+    val timeControlSeconds: Int = 1800,
     val private: Boolean = false,
     val password: String? = null,
     // CopyOnWriteArrayList: safe for concurrent iteration during broadcasts
@@ -141,7 +141,7 @@ data class GuestLoginRequest(val username: String = "", val displayName: String 
 
 data class CreateRoomRequest(
     val name: String,
-    val timeControlSeconds: Int = 600,
+    val timeControlSeconds: Int = 1800,
     val isPrivate: Boolean = false,
     val password: String? = null
 )
