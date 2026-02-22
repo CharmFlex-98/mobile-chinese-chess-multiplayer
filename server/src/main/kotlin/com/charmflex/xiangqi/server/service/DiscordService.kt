@@ -111,15 +111,26 @@ class DiscordService(
 
     private fun sendWebhook(content: String, threadId: String? = null) {
         if (webhookUrl.isBlank()) return
+        if (threadId == null) {
+            log.warn("[DISCORD] Dropping webhook message — no threadId available (thread creation may have failed)")
+            return
+        }
         try {
             val body = objectMapper.writeValueAsString(mapOf("content" to content))
-            val url = if (threadId != null) "$webhookUrl?thread_id=$threadId" else webhookUrl
+            val url = "$webhookUrl?thread_id=$threadId"
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build()
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .whenComplete { response, ex ->
+                    if (ex != null) {
+                        log.warn("[DISCORD] Webhook send failed: {}", ex.message)
+                    } else if (response.statusCode() !in 200..299) {
+                        log.warn("[DISCORD] Webhook returned non-2xx: status={}, body={}", response.statusCode(), response.body())
+                    }
+                }
         } catch (e: Exception) {
             log.warn("[DISCORD] Failed to send webhook: {}", e.message)
         }
