@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS players (
+    id      VARCHAR(255) PRIMARY KEY,
+    name    VARCHAR(255) NOT NULL,
+    xp      INTEGER      NOT NULL DEFAULT 0,
+    level   INTEGER      NOT NULL DEFAULT 1
+);
