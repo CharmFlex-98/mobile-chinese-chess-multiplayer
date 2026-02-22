@@ -63,10 +63,7 @@ class DiscordService(
                 .header("Authorization", "Bot $botToken")
                 .DELETE()
                 .build()
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            if (response.statusCode() !in 200..299) {
-                log.warn("[DISCORD] Failed to delete thread {}: status={}, body={}", threadId, response.statusCode(), response.body())
-            }
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
         } catch (e: Exception) {
             log.warn("[DISCORD] Failed to delete thread {}: {}", threadId, e.message)
         }
