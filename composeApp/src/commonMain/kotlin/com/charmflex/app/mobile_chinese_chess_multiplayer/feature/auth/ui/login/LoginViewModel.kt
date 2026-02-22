@@ -41,7 +41,7 @@ class LoginViewModel(
                     it.copy(isRestoringSession = false)
                 }
             }.onFailure { e ->
-                val error = if (e is SessionNotFound) "" else e.message
+                val error = if (e is SessionNotFound) "" else "Login failed"
                 _state.update {
                     it.copy(isRestoringSession = false, error = error)
                 }
@@ -62,7 +62,7 @@ class LoginViewModel(
                             _state.update {
                                 it.copy(
                                     isLoading = false,
-                                    error = e.message ?: "Login failed"
+                                    error = "Login failed"
                                 )
                             }
                         }
@@ -84,7 +84,7 @@ class LoginViewModel(
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Google Sign-In failed"
+                        error = "Google Sign-In failed"
                     )
                 }
             }
@@ -103,7 +103,7 @@ class LoginViewModel(
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Failed to continue as guest"
+                        error = "Failed to continue as guest"
                     )
                 }
             }

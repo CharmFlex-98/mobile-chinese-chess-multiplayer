@@ -17,7 +17,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: ./server/docker-compose.yml
           target: ./servers/mcc_server
-          strip_components: 1
+          strip_components: 2
 
 
 
