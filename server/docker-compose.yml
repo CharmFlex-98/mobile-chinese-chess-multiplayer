@@ -23,7 +23,7 @@ services:
     env_file:
       - .env.properties
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
 
 volumes:
