@@ -21,8 +21,8 @@ class DiscordService(
     // roomId -> Discord thread channel ID
     private val roomThreads = ConcurrentHashMap<String, String>()
 
-    fun notifyRoomCreated(roomId: String, roomName: String, creatorName: String) {
-        createThread(roomId, "Room: $roomName", "🏠 Room created by **$creatorName** — `$roomName` (`$roomId`) · waiting for opponent")
+    fun notifyRoomCreated(roomId: String, roomName: String, creatorId: String, creatorName: String) {
+        createThread(roomId, "Room: $roomName", "🏠 Room created by **$creatorName ($creatorId)** — `$roomName` (`$roomId`) · waiting for opponent")
     }
 
     fun notifyDestroyRoomWhileWaiting(roomId: String, roomName: String, creatorName: String) {

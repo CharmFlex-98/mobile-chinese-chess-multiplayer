@@ -54,7 +54,7 @@ class GameService(
         )
         rooms[room.id] = room
         roomBoards[room.id] = Board.initial()
-        discordService.notifyRoomCreated(room.id, room.name, player.name)
+        discordService.notifyRoomCreated(room.id, room.name, player.id, player.name)
         return room
     }
 
