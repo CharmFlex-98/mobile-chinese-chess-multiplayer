@@ -21,7 +21,6 @@ class JwtValidator(
             }
 
             val jwt = jwtDecoder.decode(token)
-            log.info("[JWT] Token validated. subject={}", jwt.subject)
             val isAnonymous = (jwt.claims["is_anonymous"] as? Boolean)?: false
 
             JwtResult(jwt.subject, isAnonymous)

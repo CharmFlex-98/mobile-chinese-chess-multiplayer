@@ -30,9 +30,7 @@ class RoomController(
     @PostMapping("/auth/guest")
     fun guestLogin(@RequestBody body: GuestLoginRequest): ResponseEntity<AuthResponse> {
         val name = body.username.ifBlank { body.displayName.ifBlank { "Guest" } }
-        log.info("[API] POST /auth/guest name={}", name)
         val player = gameService.createGuestPlayer(name)
-        log.info("[API] Guest created: id={} name={}", player.id.take(8), player.name)
         return ResponseEntity.ok(AuthResponse(token = player.id, player = player))
     }
 
@@ -43,10 +41,8 @@ class RoomController(
             throw UnauthorizedException
         }
 
-        log.info("[API] Supabase login: userId={} name={}", body.uid.take(8), body.displayName)
         val player = playerPersistenceService.getOrCreatePlayer(body.uid, body.displayName)
         val isAdmin = isAdmin(jwtResult.userId)
-        log.info("[API] Supabase player: id={} name={} xp={} level={} admin={}", player.id.take(8), player.name, player.xp, player.level, isAdmin)
 
         return ResponseEntity.ok(
             LoginVerifyResponse(
@@ -70,7 +66,6 @@ class RoomController(
         val playerColor = if (room.redPlayer?.id == userId) "RED" else "BLACK"
         val opponentName = if (playerColor == "RED") room.blackPlayer?.name ?: "Opponent"
                            else room.redPlayer?.name ?: "Opponent"
-        log.info("[API] GET /me/game -> room={} player={} color={}", room.id, userId.take(8), playerColor)
         return ResponseEntity.ok(
             ActiveGameResponse(
                 roomId = room.id,
@@ -88,14 +83,12 @@ class RoomController(
         val entries = players.mapIndexed { _, entity ->
             LeaderboardEntry(name = entity.name, xp = entity.xp, level = entity.level)
         }
-        log.info("[API] GET /public/leaderboard -> {} entries", entries.size)
         return ResponseEntity.ok(LeaderboardResponse(entries = entries))
     }
 
     @GetMapping("/rooms")
     fun getActiveRooms(): ResponseEntity<ActiveRoomsResponse> {
         val rooms = gameService.getActiveRooms().map { it.toResponse() }
-        log.info("[API] GET /rooms -> {} rooms", rooms.size)
         return ResponseEntity.ok(ActiveRoomsResponse(rooms = rooms))
     }
 

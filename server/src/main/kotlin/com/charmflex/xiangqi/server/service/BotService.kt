@@ -142,19 +142,14 @@ class BotService(
     // --- Bot Matchmaking ---
     // TODO: if bot and real player pick up at the same time?
     fun onPlayerQueueJoin(sessionId: String, timeControlSeconds: Int) {
-        log.info("[BOT] Player {} joined queue, starting bot match timer", sessionId)
         val job = scope.launch {
             val waitMs = (10_000L..15_000L).random()
             delay(waitMs)
             if (!isActive) return@launch
 
             // Check if player is still in the queue
-            val queueEntry = gameService.getQueueEntry(sessionId) ?: run {
-                log.info("[BOT] Player {} no longer in queue, cancelling bot match", sessionId)
-                return@launch
-            }
+            val queueEntry = gameService.getQueueEntry(sessionId) ?: return@launch
 
-            log.info("[BOT] Creating bot opponent for player {}", queueEntry.player.name)
             val bot = pickBotForLevel(Player.computeLevel(queueEntry.player.xp))
 
             // Create room with real player as RED, bot as BLACK
@@ -188,14 +183,12 @@ class BotService(
     }
 
     fun onPlayerQueueLeave(sessionId: String) {
-        log.info("[BOT] Player {} left queue, cancelling bot match timer", sessionId)
         pendingBotMatches.remove(sessionId)?.cancel()
     }
 
     // --- Bot Game Loop ---
 
     fun startBotGame(roomId: String, bot: BotPlayer, botColor: PieceColor) {
-        log.info("[BOT] Starting bot game: room={} bot={} color={}", roomId, bot.player.name, botColor)
         val board = Board.initial()
         botBoards[roomId] = board
         botColors[roomId] = botColor
@@ -224,7 +217,6 @@ class BotService(
         // handleMakeMove, but guard here for correctness), skip scheduling.
         val status = GameRules.getGameStatus(newBoard, botColor)
         if (status != GameStatus.PLAYING) {
-            log.info("[BOT] Game over in room {} after opponent move: {} (should have been caught upstream)", roomId, status)
             cleanupBotGame(roomId)
             return
         }
@@ -254,10 +246,6 @@ class BotService(
                 log.warn("[BOT] No move found for bot {} in room {}", bot.player.name, roomId)
                 return@launch
             }
-
-            log.info("[BOT] Bot {} plays ({},{})->({},{}) in room {}",
-                bot.player.name, bestMove.from.row, bestMove.from.col,
-                bestMove.to.row, bestMove.to.col, roomId)
 
             // Apply move to local board
             val newBoard = board.applyMove(bestMove)
@@ -359,7 +347,6 @@ class BotService(
         // Skip if not enough bots under daily limit
         val botsUnderLimit = availableBots.filter { canBotPlayByName(it.player.name) }
         if (botsUnderLimit.size < 2) {
-            log.info("[BOT] Not enough bots under daily limit for bot-vs-bot game, skipping")
             return
         }
 
@@ -410,7 +397,6 @@ class BotService(
     }
 
     fun pauseBotGame(roomId: String) {
-        log.info("[BOT] Pausing bot game for room {}", roomId)
         activeBotGames.remove(roomId)?.cancel()
         // botBoards / botColors / botPlayers stay intact for resume
     }
@@ -419,14 +405,12 @@ class BotService(
         val room = gameService.getRoom(roomId) ?: return
         val botColor = botColors[roomId] ?: return
         val currentTurnColor = if (room.currentTurn == "RED") PieceColor.RED else PieceColor.BLACK
-        log.info("[BOT] Resuming bot game for room {} (botColor={} currentTurn={})", roomId, botColor, room.currentTurn)
         if (currentTurnColor == botColor) {
             scheduleBotMove(roomId)
         }
     }
 
     fun onGameOver(roomId: String) {
-        log.info("[BOT] Game over notification for room {}", roomId)
         cleanupBotGame(roomId)
     }
 

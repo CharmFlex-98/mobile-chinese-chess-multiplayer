@@ -54,21 +54,21 @@ class DiscordService(
 
     private fun archiveThread(threadId: String) {
         if (botToken.isBlank()) {
-            log.warn("[DISCORD] Bot token not configured — skipping thread archive for threadId={}", threadId)
+            log.warn("[DISCORD] Bot token not configured — skipping thread delete for threadId={}", threadId)
             return
         }
         try {
-            val body = objectMapper.writeValueAsString(mapOf("archived" to true))
             val request = HttpRequest.newBuilder()
                 .uri(URI.create("https://discord.com/api/v10/channels/$threadId"))
-                .header("Content-Type", "application/json")
                 .header("Authorization", "Bot $botToken")
-                .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
+                .DELETE()
                 .build()
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
-            log.info("[DISCORD] Archived thread: threadId={}", threadId)
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                log.warn("[DISCORD] Failed to delete thread {}: status={}, body={}", threadId, response.statusCode(), response.body())
+            }
         } catch (e: Exception) {
-            log.warn("[DISCORD] Failed to archive thread {}: {}", threadId, e.message)
+            log.warn("[DISCORD] Failed to delete thread {}: {}", threadId, e.message)
         }
     }
 

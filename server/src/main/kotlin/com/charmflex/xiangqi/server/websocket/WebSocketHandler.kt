@@ -37,7 +37,6 @@ class WebSocketHandler(
 
         val token = params["token"]
         val name = params["name"]
-        log.info("[WS] Connection params: token={} name={}", token?.take(8)?.plus("..."), name)
 
         when {
             token != null -> {
@@ -76,14 +75,11 @@ class WebSocketHandler(
                 ))
             }
         }
-        log.info("[WS] Total active sessions: {}", sessionRegistry.getAllSessionIds().size)
     }
 
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
-        log.info("[WS] Connection closed: sessionId={} status={}", session.id, status)
         sessionRegistry.unregister(session.id)
         orchestrator.onConnectionClosed(session.id)
-        log.info("[WS] Remaining sessions: {}", sessionRegistry.getAllSessionIds().size)
     }
 
     override fun handlePongMessage(session: WebSocketSession, message: PongMessage) {
@@ -91,13 +87,11 @@ class WebSocketHandler(
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
-        log.info("[WS] <<< RECV from session {}: {}", session.id, message.payload)
         try {
             val envelope = json.decodeFromString<JsonObject>(message.payload)
             val scene = envelope["scene"]?.jsonPrimitive?.content ?: WsScene.GAME
             val type = envelope["type"]?.jsonPrimitive?.content ?: return
             val payload = envelope["payload"]?.jsonObject ?: return
-            log.info("[WS] Message scene={} type={} from session={}", scene, type, session.id)
 
             orchestrator.handleMessage(session.id, scene, type, payload)
         } catch (e: Exception) {

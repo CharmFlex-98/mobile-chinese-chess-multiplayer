@@ -70,7 +70,6 @@ class GameOrchestrator(
                 }
             }
             val reason = if (result.timedOut) "timeout" else "checkmate"
-            log.info("[ORCH] Bot game over in room {}: {} ({})", roomId, gameOverResult, reason)
             broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
                 WsType.GAME_OVER,
                 GameOverPayload(roomId = roomId, result = gameOverResult, reason = reason)
@@ -97,7 +96,6 @@ class GameOrchestrator(
         val roomIds = gameService.getRoomIdsForSession(sessionId)
         roomIds.forEach { roomId ->
             gameService.removeSessionIdFromRoom(roomId, sessionId)
-            log.info("[ORCH] Notifying room {} about disconnection of session {}", roomId, sessionId)
             broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
                 WsType.OPPONENT_DISCONNECTED,
                 OpponentDisconnectedPayload(roomId = roomId)
@@ -168,9 +166,6 @@ class GameOrchestrator(
     fun handleMakeMove(sessionId: String, roomId: String, move: MoveDto) {
         val player = sessionPlayerMap[sessionId] ?: return
 
-        log.info("[ORCH] handleMakeMove: room={} player={} move=({},{})->({},{})",
-            roomId, player.name, move.fromRow, move.fromCol, move.toRow, move.toCol)
-
         val result = gameService.makeMove(roomId, move, player.id)
         if (!result.success) {
             log.warn("[ORCH] handleMakeMove REJECTED: room={} player={}", roomId, player.name)
@@ -194,7 +189,6 @@ class GameOrchestrator(
         when {
             result.timedOut -> {
                 val timeoutResult = if (result.redTimeMillis <= 0) "black_wins" else "red_wins"
-                log.info("[ORCH] Timeout in room {}: {}", roomId, timeoutResult)
                 handleGameOver(roomId, timeoutResult, "timeout")
             }
             result.gameStatus != GameStatus.PLAYING -> {
@@ -204,7 +198,6 @@ class GameOrchestrator(
                     GameStatus.DRAW -> "draw"
                     else -> return
                 }
-                log.info("[ORCH] Game over by {} in room {}: {}", result.gameStatus, roomId, gameOverResult)
                 handleGameOver(roomId, gameOverResult, "checkmate")
             }
             gameService.roomHasBot(roomId) -> botService.onOpponentMove(roomId, move)
@@ -225,7 +218,6 @@ class GameOrchestrator(
 
     fun handleQueueJoin(sessionId: String, timeControlSeconds: Int) {
         val player = sessionPlayerMap[sessionId] ?: return
-        log.info("[ORCH] handleQueueJoin: player={} timeControl={}s", player.name, timeControlSeconds)
 
         gameService.joinQueue(sessionId, player, timeControlSeconds)
 
@@ -233,7 +225,6 @@ class GameOrchestrator(
         val match = gameService.findMatch(sessionId)
 
         if (match != null) {
-            log.info("[ORCH] MATCH FOUND: {} vs {}", match.first.player.name, match.second.player.name)
             val (entry1, entry2) = match
             val room = gameService.createRoom(entry1.player, "Matched Game", entry1.timeControlSeconds, false)
             gameService.joinRoom(room.id, entry2.player)
@@ -251,7 +242,6 @@ class GameOrchestrator(
             ))
         } else { // if no match, then we will wait longer, and if still cannot find any match, we will assign a bot.
             val position = gameService.getQueuePosition(sessionId)
-            log.info("[ORCH] No match yet for {}, queue position={}", player.name, position)
             sessionRegistry.sendToSession(sessionId, WsMessageBuilder.buildGameMessage(
                 WsType.QUEUE_UPDATE,
                 QueueUpdatePayload(position = position, estimatedWaitSeconds = 30)
@@ -307,13 +297,11 @@ class GameOrchestrator(
         broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(WsType.CHAT_RECEIVE, payload))
         room.chatHistory.add(ChatEntry("bot", "Bot", message, timestamp))
         discordService.notifyChat("Bot (Admin Reply)", message, roomId)
-        log.info("[ORCH] Admin chat sent to room {}: {}", roomId, message)
         return true
     }
 
     fun handleGlobalChatSend(sessionId: String, message: String) {
         val player = sessionPlayerMap[sessionId] ?: return
-        log.info("[ORCH] global_chat: player={} message={}", player.name, message)
         val globalMsg = WsMessageBuilder.buildGlobalMessage(
             WsType.GLOBAL_CHAT_RECEIVE,
             GlobalChatReceivePayload(
@@ -328,9 +316,7 @@ class GameOrchestrator(
 
     fun handleResign(sessionId: String, roomId: String) {
         val player = sessionPlayerMap[sessionId] ?: return
-        log.info("[ORCH] handleResign: player={} room={}", player.name, roomId)
         val result = gameService.resign(roomId, player.id) ?: return
-        log.info("[ORCH] resign result: {}", result)
 
         handleGameOver(roomId, result, "resignation by ${player.name}")
     }
@@ -379,8 +365,6 @@ class GameOrchestrator(
             log.warn("[ORCH] handleRoomJoin: no player for session {}", sessionId)
             return
         }
-        log.info("[ORCH] handleRoomJoin: player={} room={} red={} black={}", player.name, roomId, room.redPlayer?.name, room.blackPlayer?.name)
-
         // Capture a consistent snapshot of all mutable room fields under the room lock.
         // Prevents races with abandonGame()/makeMove()/finishGame() which also hold synchronized(room).
         // Any room mutation (spectator add) also happens here. IO runs after the lock is released.
@@ -431,7 +415,6 @@ class GameOrchestrator(
             }
 
             gameService.addRoomSession(roomId, sessionId)
-            log.info("[ORCH] Spectator joined: player={} room={}", player.name, roomId)
 
             broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
                 WsType.SPECTATOR_JOINED,
@@ -460,11 +443,9 @@ class GameOrchestrator(
 
         // Player path (red or black reconnect / initial join)
         gameService.addRoomSession(roomId, sessionId)
-        log.info("[ORCH] Room {} sessions: {}", roomId, gameService.getRoomSessionIds(roomId).size)
 
         if (snap.gameStarted) {
             // Reconnect branch: game already started — send full state and notify opponent
-            log.info("[ORCH] Player {} reconnected to in-progress room {}", player.name, roomId)
             val red = snap.redPlayer ?: return
             val black = snap.blackPlayer ?: return
             sessionRegistry.sendToSession(sessionId, WsMessageBuilder.buildGameMessage(
@@ -499,7 +480,6 @@ class GameOrchestrator(
             if (snap.status == RoomStatus.PLAYING && snap.redPlayer != null && snap.blackPlayer != null) {
                 val justStarted = gameService.recordGameStart(roomId)
                 if (justStarted) {
-                    log.info("[ORCH] Both players in room {}, broadcasting game_started", roomId)
                     broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
                         WsType.GAME_STARTED,
                         GameStartedPayload(
@@ -564,7 +544,6 @@ class GameOrchestrator(
         if (winnerId.startsWith("bot-")) {
             // Bot wins: persist XP to DB for leaderboard, but no WS notification (no real session)
             persistenceService.persistXpGain(winnerId, xpGain)
-            log.info("[ORCH] Bot XP persisted: bot={} +{}xp", winnerId, xpGain)
             return
         }
 
@@ -583,8 +562,6 @@ class GameOrchestrator(
             WsType.XP_UPDATE,
             XpUpdatePayload(newXp = winner.xp, newLevel = winner.level, xpGained = xpGain, oldLevel = oldLevel)
         ))
-
-        log.info("[ORCH] XP granted: player={} +{}xp newXp={} newLevel={}", winner.name, xpGain, winner.xp, winner.level)
     }
 }
 

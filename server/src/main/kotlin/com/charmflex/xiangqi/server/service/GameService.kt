@@ -26,7 +26,6 @@ class GameService(
 
     fun createGuestPlayer(name: String): Player {
         val player = Player(name = name)
-        log.info("[SVC] Created guest player: id={} name={}", player.id.take(8), player.name)
         return player
     }
 
@@ -76,13 +75,11 @@ class GameService(
                 return null
             }
             if (room.redPlayer?.id == player.id) {
-                log.info("[SVC] joinRoom: player {} is already red in room {}", player.name, roomId)
                 return room
             }
 
             room.blackPlayer = player
             room.status = RoomStatus.PLAYING
-            log.info("[SVC] joinRoom OK: room={} red={} black={} status=PLAYING", roomId, room.redPlayer?.name, player.name)
         }
         discordService.notifyRoomJoined(roomId, room.name, player.id, player.name)
         return room
@@ -105,7 +102,6 @@ class GameService(
 
     fun getActiveRooms(): List<GameRoom> {
         val active = rooms.values.filter { it.status != RoomStatus.FINISHED }
-        log.info("[SVC] getActiveRooms: {} active out of {} total", active.size, rooms.size)
         return active
     }
 
@@ -167,8 +163,6 @@ class GameService(
                 log.warn("[SVC] makeMove: not {}'s turn (current={}, expected={})", playerId.take(8), room.currentTurn, currentPlayer?.name)
                 return MakeMoveResult(success = false)
             }
-            log.info("[SVC] makeMove: room={} player={} turn={} ({},{})->({},{})", roomId, currentPlayer.name, room.currentTurn, move.fromRow, move.fromCol, move.toRow, move.toCol)
-
             // Update timer
             val now = System.currentTimeMillis()
             val elapsed = now - room.lastMoveTimestamp

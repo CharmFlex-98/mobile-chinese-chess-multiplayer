@@ -3,14 +3,12 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.core.network
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.config.AppConfigProvider
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.session.SessionManager
 import io.ktor.client.HttpClient
-import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -95,10 +93,13 @@ class WebSocketClient(
         }
     }
 
+
     private fun buildWsUrl(): String {
         val token = sessionManager.currentUserSession.value?.token ?: ""
         return "$wsUrl?token=$token"
     }
+
+
 
     suspend fun send(message: WsClientMessage) {
         val envelope = WsEnvelope(
@@ -116,6 +117,8 @@ class WebSocketClient(
             println("[WS] WARN: No active session, message dropped!")
         }
     }
+
+
 
     fun disconnect() {
         println("[WS] Disconnecting...")
