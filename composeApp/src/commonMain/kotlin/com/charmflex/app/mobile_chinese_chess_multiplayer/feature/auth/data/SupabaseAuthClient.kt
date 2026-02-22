@@ -60,4 +60,11 @@ class SupabaseAuthClient {
             ?: metadata["name"]?.jsonPrimitive?.content
             ?: user.email?.substringBefore("@")
     }
+
+    fun currentAvatarUrl(): String? {
+        val user = supabaseClient.auth.currentSessionOrNull()?.user ?: return null
+        val metadata = user.userMetadata ?: return null
+        return metadata["avatar_url"]?.jsonPrimitive?.content
+            ?: metadata["picture"]?.jsonPrimitive?.content
+    }
 }

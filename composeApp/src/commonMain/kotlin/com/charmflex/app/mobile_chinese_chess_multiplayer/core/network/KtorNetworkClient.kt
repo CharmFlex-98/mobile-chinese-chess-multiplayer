@@ -41,6 +41,11 @@ class KtorNetworkClient(
 ) : NetworkClient {
     private val baseUrl = appConfigProvider.baseUrl()
     private val httpClient: HttpClient = getClient()
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        classDiscriminator = "type"
+    }
 
     private fun getClient(): HttpClient {
         val client =  HttpClient {
@@ -58,6 +63,7 @@ class KtorNetworkClient(
                 json(Json {
                     prettyPrint = true
                     isLenient = true
+                    encodeDefaults = true
                     ignoreUnknownKeys = true
                     explicitNulls = false
                 })
@@ -98,7 +104,7 @@ class KtorNetworkClient(
         val response = httpClient.post {
             append(endpoint)
             contentType(ContentType.Application.Json)
-            setBody(Json.encodeToString(requestSerializer, body))
+            setBody(json.encodeToString(requestSerializer, body))
             networkAttributes?.forEach {
                 attributes.put(AttributeKey(it.name), it.value)
             }
@@ -115,7 +121,7 @@ class KtorNetworkClient(
         val response = httpClient.patch {
             append(endpoint)
             contentType(ContentType.Application.Json)
-            setBody(Json.encodeToString(requestSerializer, body))
+            setBody(json.encodeToString(requestSerializer, body))
         }
         return decodeResponse(response, responseSerializer)
     }
@@ -140,7 +146,7 @@ class KtorNetworkClient(
         val response = httpClient.put {
             append(endpoint)
             contentType(ContentType.Application.Json)
-            setBody(Json.encodeToString(requestSerializer, body))
+            setBody(json.encodeToString(requestSerializer, body))
         }
         return decodeResponse(response, responseSerializer)
     }
@@ -163,7 +169,7 @@ class KtorNetworkClient(
             throw APIException(response.status.value, response.bodyAsText())
         }
         val text = response.bodyAsText()
-        return Json.decodeFromString(serializer, text)
+        return json.decodeFromString(serializer, text)
     }
 }
 

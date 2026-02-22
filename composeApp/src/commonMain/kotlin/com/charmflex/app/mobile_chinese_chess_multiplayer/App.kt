@@ -5,7 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.navigation.NavController
@@ -35,10 +40,21 @@ fun App(
 ) {
     val navController = rememberNavController()
     val state by toastManager.state.collectAsState()
+    var awaitingSecondBackPress by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     BackHandler {
         if (navController.popBackStack().not()) {
-            onBack()
+            if (awaitingSecondBackPress) {
+                onBack()
+            } else {
+                awaitingSecondBackPress = true
+                toastManager.postMessage("Press again to exit")
+                scope.launch {
+                    delay(2000)
+                    awaitingSecondBackPress = false
+                }
+            }
         }
     }
 

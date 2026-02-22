@@ -51,7 +51,7 @@ class GameChannel(
         socketClient.send(MakeMove(roomId, move))
     }
 
-    suspend fun joinQueue(timeControlSeconds: Int = 600) {
+    suspend fun joinQueue(timeControlSeconds: Int = 1800) {
         println("[WS] Joining matchmaking queue (time=${timeControlSeconds}s)")
         socketClient.send(QueueJoin(timeControlSeconds))
     }

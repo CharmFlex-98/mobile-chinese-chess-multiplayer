@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.theme.*
@@ -125,7 +126,13 @@ fun BattleLobbyScreen(
                     }
                 }
             }
-            item { CreateRoomSection(onCreateRoom = { viewModel.createRoom("My Room") }) }
+            item {
+                CreateRoomSection(
+                    onCreateRoom = { viewModel.showCreateRoomDialog() },
+                    onJoinById = { viewModel.showJoinByIdDialog() },
+                    isGuest = state.isGuest
+                )
+            }
         }
     }
 
@@ -202,13 +209,164 @@ fun BattleLobbyScreen(
         )
     }
 
+    // Create Room dialog
+    if (state.showCreateRoomDialog) {
+        CreateRoomDialog(
+            onDismiss = { viewModel.dismissCreateRoomDialog() },
+            onConfirm = { name, password ->
+                viewModel.dismissCreateRoomDialog()
+                // Private rooms are always private; password adds extra security
+                viewModel.createRoom(name, isPrivate = true, password = password)
+            }
+        )
+    }
+
+    // Join by Room ID dialog
+    if (state.showJoinByIdDialog) {
+        JoinByRoomIdDialog(
+            onDismiss = { viewModel.dismissJoinByIdDialog() },
+            onConfirm = { roomId, password ->
+                viewModel.dismissJoinByIdDialog()
+                viewModel.joinRoom(roomId, password)
+            }
+        )
+    }
+
     // Error snackbar
     state.error?.let { error ->
         LaunchedEffect(error) {
-            delay(3000)
+            if (error.isNotBlank()) {
+                viewModel.showErrorSnackBar(error)
+            }
             viewModel.dismissError()
         }
     }
+}
+
+@Composable
+private fun CreateRoomDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, password: String?) -> Unit
+) {
+    var roomName by remember { mutableStateOf("My Room") }
+    var password by remember { mutableStateOf("") }
+    var usePassword by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Private Room", color = Color.White) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = roomName,
+                    onValueChange = { roomName = it },
+                    label = { Text("Room Name", color = Color.White.copy(alpha = 0.7f)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = usePassword,
+                        onCheckedChange = { usePassword = it; if (!it) password = "" },
+                        colors = CheckboxDefaults.colors(checkedColor = GoldPrimary)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Password protect", color = Color.White, fontSize = 14.sp)
+                }
+                if (usePassword) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password", color = Color.White.copy(alpha = 0.7f)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GoldPrimary,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val pw = if (usePassword && password.isNotBlank()) password else null
+                    onConfirm(roomName.ifBlank { "My Room" }, pw)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black)
+            ) { Text("Create", fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Cancel", color = Color.White) }
+        },
+        containerColor = SurfaceDark
+    )
+}
+
+@Composable
+private fun JoinByRoomIdDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (roomId: String, password: String?) -> Unit
+) {
+    var roomId by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Join by Room ID", color = Color.White) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = roomId,
+                    onValueChange = { roomId = it },
+                    label = { Text("Room ID", color = Color.White.copy(alpha = 0.7f)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password (if any)", color = Color.White.copy(alpha = 0.7f)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldPrimary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (roomId.isNotBlank()) {
+                        onConfirm(roomId.trim(), password.ifBlank { null })
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black),
+                enabled = roomId.isNotBlank()
+            ) { Text("Join", fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Cancel", color = Color.White) }
+        },
+        containerColor = SurfaceDark
+    )
 }
 
 @Composable
@@ -243,10 +401,6 @@ private fun LobbyHeader(isConnected: Boolean, onRefresh: () -> Unit) {
                     .clickable { onRefresh() },
                 contentAlignment = Alignment.Center
             ) { Text("↻", fontSize = 18.sp, color = GoldPrimary) }
-            Box(
-                modifier = Modifier.size(40.dp).background(GoldPrimary.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) { Text("⚙", fontSize = 18.sp, color = GoldPrimary) }
         }
     }
 }
@@ -493,6 +647,18 @@ private fun RoomCard(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
+        } else if (room.private) {
+            Surface(
+                color = Color.White.copy(alpha = 0.05f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    "PRIVATE",
+                    style = AppTypography.labelSmall,
+                    color = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
         } else {
             Button(
                 onClick = onJoin,
@@ -505,16 +671,30 @@ private fun RoomCard(
 }
 
 @Composable
-private fun CreateRoomSection(onCreateRoom: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+private fun CreateRoomSection(onCreateRoom: () -> Unit, onJoinById: () -> Unit, isGuest: Boolean = false) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Button(
             onClick = onCreateRoom,
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isGuest) GoldPrimary.copy(alpha = 0.3f) else GoldPrimary,
+                contentColor = Color.Black
+            ),
             shape = RoundedCornerShape(12.dp),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
         ) {
             Text("＋  CREATE PRIVATE ROOM", style = AppTypography.labelLarge, fontWeight = FontWeight.Bold)
+        }
+        OutlinedButton(
+            onClick = onJoinById,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+        ) {
+            Text("🔗  JOIN BY ROOM ID", style = AppTypography.labelLarge, color = GoldPrimary, fontWeight = FontWeight.Bold)
         }
     }
 }

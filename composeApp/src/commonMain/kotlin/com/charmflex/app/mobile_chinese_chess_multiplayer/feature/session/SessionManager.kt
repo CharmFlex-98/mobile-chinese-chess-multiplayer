@@ -13,12 +13,19 @@ class SessionManager {
     private val _currentUserSession: MutableStateFlow<UserSession?> = MutableStateFlow(null)
     val currentUserSession = _currentUserSession.asStateFlow()
 
+    private val _pendingLevelUp: MutableStateFlow<Int?> = MutableStateFlow(null)
+    val pendingLevelUp = _pendingLevelUp.asStateFlow()
+
     fun onLogin(
         token: String,
         id: String,
         name: String,
         email: String?,
-        isGuest: Boolean
+        isGuest: Boolean,
+        xp: Int = 0,
+        level: Int = 1,
+        avatarUrl: String? = null,
+        isAdmin: Boolean = false
     ) {
         _currentUserSession.value = UserSession(
             token = token,
@@ -26,8 +33,24 @@ class SessionManager {
             name = name,
             email = email,
             isGuest = isGuest,
-            loginTime = Clock.System.now().toString()
+            loginTime = Clock.System.now().toString(),
+            xp = xp,
+            level = level,
+            avatarUrl = avatarUrl,
+            isAdmin = isAdmin
         )
+    }
+
+    fun updateXp(newXp: Int, newLevel: Int) {
+        _currentUserSession.value = _currentUserSession.value?.copy(xp = newXp, level = newLevel)
+    }
+
+    fun setPendingLevelUp(newLevel: Int) {
+        _pendingLevelUp.value = newLevel
+    }
+
+    fun clearPendingLevelUp() {
+        _pendingLevelUp.value = null
     }
 
     fun onLogout() {
@@ -43,5 +66,9 @@ data class UserSession(
     val name: String,
     val email: String? = null,
     val isGuest: Boolean = false,
-    val loginTime: String
+    val loginTime: String,
+    val xp: Int = 0,
+    val level: Int = 1,
+    val avatarUrl: String? = null,
+    val isAdmin: Boolean = false
 )

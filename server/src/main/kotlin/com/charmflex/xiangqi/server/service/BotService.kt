@@ -10,20 +10,25 @@ import jakarta.annotation.PostConstruct
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.util.UUID
+import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class BotService(
     private val gameService: GameService,
     private val orchestrator: GameOrchestrator,
-    private val sessionRegistry: SessionRegistry
+    private val sessionRegistry: SessionRegistry,
+    private val playerPersistenceService: PlayerPersistenceService
 ) {
     private val log = LoggerFactory.getLogger(BotService::class.java)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    // Bot pool
-    private val botPool: List<BotPlayer> = createBotPool()
+    // Bot pool — initialized eagerly then synced with DB in @PostConstruct
+    private var botPool: List<BotPlayer> = createBotPool()
+
+    // Daily game counters: bot name -> DailyCounter
+    private data class DailyCounter(val date: LocalDate, val count: Int)
+    private val botDailyCounts = ConcurrentHashMap<String, DailyCounter>()
 
     // Active bot game loops: roomId -> Job
     private val activeBotGames = ConcurrentHashMap<String, Job>()
@@ -47,27 +52,74 @@ class BotService(
         data class BotDef(val name: String, val rating: Int, val difficulty: AiDifficulty)
 
         val defs = listOf(
-            BotDef("棋仙", 1800, AiDifficulty.EXPERT),
-            BotDef("竹林高手", 1600, AiDifficulty.HARD),
-            BotDef("弈者无敌", 1700, AiDifficulty.EXPERT),
-            BotDef("天涯棋客", 1500, AiDifficulty.HARD),
-            BotDef("象棋迷", 1300, AiDifficulty.INTERMEDIATE),
-            BotDef("小明", 1000, AiDifficulty.MEDIUM),
-            BotDef("棋乐无穷", 1400, AiDifficulty.INTERMEDIATE),
-            BotDef("将军令", 1600, AiDifficulty.HARD),
-            BotDef("红袍将", 1200, AiDifficulty.MEDIUM),
-            BotDef("黑马骑士", 1100, AiDifficulty.MEDIUM),
-            BotDef("炮轰天下", 1500, AiDifficulty.HARD),
-            BotDef("车马炮", 900, AiDifficulty.EASY),
-            BotDef("新手上路", 800, AiDifficulty.BEGINNER),
-            BotDef("棋坛新秀", 1000, AiDifficulty.MEDIUM),
-            BotDef("老将出马", 1700, AiDifficulty.EXPERT)
+            // BEGINNER (5)
+            BotDef("Aiman Rahman", 0, AiDifficulty.BEGINNER),
+            BotDef("Priya Nair", 0, AiDifficulty.BEGINNER),
+            BotDef("Lucas Martin", 0, AiDifficulty.BEGINNER),
+            BotDef("Nurul Izzah", 0, AiDifficulty.BEGINNER),
+            BotDef("Daniel Smith", 0, AiDifficulty.BEGINNER),
+
+// EASY (8)
+            BotDef("Farhan Ali", 0, AiDifficulty.EASY),
+            BotDef("Anjali Kumar", 0, AiDifficulty.EASY),
+            BotDef("Jason Miller", 0, AiDifficulty.EASY),
+            BotDef("Mei Ling Tan", 0, AiDifficulty.EASY),
+            BotDef("Adam Walker", 0, AiDifficulty.EASY),
+            BotDef("Siti Aisyah", 0, AiDifficulty.EASY),
+            BotDef("Rajesh Pillai", 0, AiDifficulty.EASY),
+            BotDef("Hannah Brown", 0, AiDifficulty.EASY),
+
+// MEDIUM (10)
+            BotDef("Zachary Lee", 0, AiDifficulty.MEDIUM),
+            BotDef("Alicia Fernandez", 0, AiDifficulty.MEDIUM),
+            BotDef("Harith Iskandar", 0, AiDifficulty.MEDIUM),
+            BotDef("Kavitha Raman", 0, AiDifficulty.MEDIUM),
+            BotDef("Ethan Johnson", 0, AiDifficulty.MEDIUM),
+            BotDef("Syafiq Azman", 0, AiDifficulty.MEDIUM),
+            BotDef("Isabella Rossi", 0, AiDifficulty.MEDIUM),
+            BotDef("Wei Jian Ong", 0, AiDifficulty.MEDIUM),
+            BotDef("Ryan Patel", 0, AiDifficulty.MEDIUM),
+            BotDef("Clara Schmidt", 0, AiDifficulty.MEDIUM),
+
+// INTERMEDIATE (15)
+            BotDef("Muhammad Firdaus", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Arjun Menon", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Sophia Williams", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Jonathan Clark", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Nur Farah", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Benjamin Tan", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Amirah Zainal", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Marcus Robinson", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Devi Krishnan", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Caleb Anderson", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Irfan Hakim", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Natalie Garcia", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Daniel O'Connor", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Nadia Hussein", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Samuel Kim", 0, AiDifficulty.INTERMEDIATE),
+
+// HARD (8)
+            BotDef("Christopher Evans", 0, AiDifficulty.HARD),
+            BotDef("Ravi Subramaniam", 0, AiDifficulty.HARD),
+            BotDef("Ahmad Danish", 0, AiDifficulty.HARD),
+            BotDef("Victor Ivanov", 0, AiDifficulty.HARD),
+            BotDef("Leonardo Costa", 0, AiDifficulty.HARD),
+            BotDef("Mohd Faizal", 0, AiDifficulty.HARD),
+            BotDef("Andrew Thompson", 0, AiDifficulty.HARD),
+            BotDef("Prakash Singh", 0, AiDifficulty.HARD),
+
+// EXPERT (4)
+            BotDef("Alexander Petrov", 0, AiDifficulty.EXPERT),
+            BotDef("Hiroshi Tanaka", 0, AiDifficulty.EXPERT),
+            BotDef("Omar Al-Farsi", 0, AiDifficulty.EXPERT),
+            BotDef("William Carter", 0, AiDifficulty.EXPERT)
+
         )
 
         return defs.map { def ->
             BotPlayer(
                 player = Player(
-                    id = "bot-${UUID.randomUUID()}",
+                    id = "bot-${def.name}",
                     name = def.name,
                     xp = def.rating,
                     level = Player.computeLevel(def.rating)
@@ -125,6 +177,9 @@ class BotService(
                 )
             )
             sessionRegistry.sendToSession(sessionId, matchMsg)
+
+            // Increment daily counter for the chosen bot
+            incrementBotDailyCountByName(bot.player.name)
 
             // Start bot game loop
             startBotGame(room.id, bot, botColor)
@@ -226,10 +281,45 @@ class BotService(
         activeBotGames[roomId] = job
     }
 
+    // --- Daily limit helpers ---
+
+    private fun canBotPlayByName(name: String): Boolean {
+        val today = LocalDate.now()
+        val counter = botDailyCounts[name] ?: return true
+        if (counter.date != today) return true
+        return counter.count < 5
+    }
+
+    private fun incrementBotDailyCountByName(name: String) {
+        botDailyCounts.compute(name) { _, existing ->
+            val today = LocalDate.now()
+            if (existing == null || existing.date != today) {
+                DailyCounter(today, 1)
+            } else {
+                existing.copy(count = existing.count + 1)
+            }
+        }
+    }
+
     // --- Bot-vs-Bot Lobby Simulation ---
 
     @PostConstruct
-    fun startLobbySimulation() {
+    fun initializeService() {
+        ensureBotsRegistered()
+        startLobbySimulation()
+    }
+
+    private fun ensureBotsRegistered() {
+        log.info("[BOT] Persisting {} bots to DB if absent", botPool.size)
+        botPool = botPool.map { bot ->
+            val dbPlayer = playerPersistenceService.persistBotIfAbsent(
+                bot.player.id, bot.player.name, bot.player.xp
+            )
+            bot.copy(player = dbPlayer)
+        }
+    }
+
+    private fun startLobbySimulation() {
         log.info("[BOT] Starting lobby simulation")
         scope.launch {
             delay(5_000)
@@ -239,37 +329,50 @@ class BotService(
                     job.isActive && isBotVsBotGame(roomId)
                 }
 
-                val targetGames = 2
+                val targetGames = (5..10).random()
                 if (activeCount < targetGames) {
                     repeat(targetGames - activeCount) {
                         createBotVsBotGame()
                     }
                 }
 
-                delay((30_000L..90_000L).random())
+                // Delay 15-30 minutes and recreate the bot
+                delay((90_000L..180_0000L).random())
             }
         }
     }
 
+    fun idleBots(): List<BotPlayer> {
+        return botPool.filter {
+            val bots = botVsBotRooms.values.flatMap { it.toList().map { it.player.id } }
+            !bots.contains(it.player.id)
+        }
+    }
+
     private fun createBotVsBotGame() {
-        val availableBots = botPool.shuffled()
+        val availableBots = botPool.shuffled().filter {
+            val bots = botVsBotRooms.values.flatMap { it.toList().map { it.player.id } }
+            !bots.contains(it.player.id)
+        }
         if (availableBots.size < 2) return
 
-        val redBot = availableBots[0].copy(
-            player = availableBots[0].player.copy(id = "bot-${UUID.randomUUID()}"),
-            minDelayMs = 5000L,
-            maxDelayMs = 20000L
-        )
-        val blackBot = availableBots[1].copy(
-            player = availableBots[1].player.copy(id = "bot-${UUID.randomUUID()}"),
-            minDelayMs = 5000L,
-            maxDelayMs = 20000L
-        )
+        // Skip if not enough bots under daily limit
+        val botsUnderLimit = availableBots.filter { canBotPlayByName(it.player.name) }
+        if (botsUnderLimit.size < 2) {
+            log.info("[BOT] Not enough bots under daily limit for bot-vs-bot game, skipping")
+            return
+        }
 
-        val lobbyRedBot = redBot.copy(difficulty = AiDifficulty.EASY)
-        val lobbyBlackBot = blackBot.copy(difficulty = AiDifficulty.EASY)
+        val redBot = botsUnderLimit[0].copy(minDelayMs = 5000L, maxDelayMs = 20000L)
+        val blackBot = botsUnderLimit[1].copy(minDelayMs = 5000L, maxDelayMs = 20000L)
 
-        val room = gameService.createRoom(lobbyRedBot.player, "Bot Match", 600, false)
+        val lobbyRedBot = redBot
+        val lobbyBlackBot = blackBot
+
+        incrementBotDailyCountByName(redBot.player.name)
+        incrementBotDailyCountByName(blackBot.player.name)
+
+        val room = gameService.createRoom(lobbyRedBot.player, "Matched Game", 1800, false)
         gameService.joinRoom(room.id, lobbyBlackBot.player)
         gameService.recordGameStart(room.id)
 
@@ -292,16 +395,18 @@ class BotService(
 
     private fun pickBotForLevel(playerLevel: Int): BotPlayer {
         val targetDifficulty = when {
-            playerLevel <= 2 -> AiDifficulty.BEGINNER
-            playerLevel <= 4 -> AiDifficulty.EASY
-            playerLevel <= 6 -> AiDifficulty.MEDIUM
-            playerLevel <= 8 -> AiDifficulty.INTERMEDIATE
-            playerLevel <= 10 -> AiDifficulty.HARD
-            else -> AiDifficulty.EXPERT
+            playerLevel <= 3 -> AiDifficulty.EASY
+            playerLevel <= 15 -> AiDifficulty.MEDIUM
+            playerLevel <= 25 -> AiDifficulty.INTERMEDIATE
+            playerLevel <= 35 -> AiDifficulty.EXPERT
+            playerLevel <= 45 -> AiDifficulty.MASTER
+            playerLevel <= 55 -> AiDifficulty.GRANDMASTER
+            else -> AiDifficulty.LEGEND
         }
-        val candidates = botPool.filter { it.difficulty == targetDifficulty }
-        val bot = (candidates.ifEmpty { botPool }).random()
-        return bot.copy(player = bot.player.copy(id = "bot-${UUID.randomUUID()}"))
+        val candidates = idleBots().filter { it.difficulty == targetDifficulty }.ifEmpty { botPool }
+        // Prefer bots under daily limit; fall back to any available bot if all at limit
+        val underLimit = candidates.filter { canBotPlayByName(it.player.name) }
+        return (underLimit.ifEmpty { candidates }).random()
     }
 
     fun pauseBotGame(roomId: String) {

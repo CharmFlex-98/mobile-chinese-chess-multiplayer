@@ -41,5 +41,21 @@ class PlayerPersistenceService(private val playerRepository: PlayerRepository) {
         return player
     }
 
+    /**
+     * Persists a bot player to DB if not already present (keyed by fixed ID).
+     * Returns the persisted player with current DB XP/level.
+     * If the bot already exists in DB, returns the existing record (preserving accumulated XP).
+     */
+    @Transactional
+    fun persistBotIfAbsent(id: String, name: String, initialXp: Int = 0): Player {
+        val existing = playerRepository.findById(id).orElse(null)
+        if (existing != null) return existing.toPlayer()
+        val newLevel = Player.computeLevel(initialXp)
+        val entity = PlayerEntity(id = id, name = name, xp = initialXp, level = newLevel)
+        return playerRepository.save(entity).toPlayer()
+    }
+
     fun findById(id: String): PlayerEntity? = playerRepository.findById(id).orElse(null)
+
+    fun getTopPlayersByXp(): List<PlayerEntity> = playerRepository.findTop50ByOrderByXpDesc()
 }

@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.navigation.RouteNavigator
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.AuthService
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.SessionNotFound
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.repository.AuthRepository
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.route.AuthRoute
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.home.route.HomeRoute
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,8 +41,9 @@ class LoginViewModel(
                     it.copy(isRestoringSession = false)
                 }
             }.onFailure { e ->
+                val error = if (e is SessionNotFound) "" else e.message
                 _state.update {
-                    it.copy(isRestoringSession = false, error = e.message)
+                    it.copy(isRestoringSession = false, error = error)
                 }
             }
         }
@@ -53,7 +56,7 @@ class LoginViewModel(
                     // OAuth redirect completed — register with game server
                     authService.handleUserAuthenticated().fold(
                         onSuccess = {
-                            routeNavigator.navigateTo(HomeRoute.ROOT)
+                            routeNavigator.navigateAndPopUpTo(HomeRoute.ROOT, AuthRoute.Login)
                         },
                         onFailure = { e ->
                             _state.update {
@@ -95,7 +98,7 @@ class LoginViewModel(
             val guestId = Uuid.random().toString()
             try {
                 val response = authRepository.signInAsGuest(guestId, "", "")
-                routeNavigator.navigateTo(HomeRoute.ROOT)
+                routeNavigator.navigateAndPopUpTo(HomeRoute.ROOT, AuthRoute.Login)
             } catch (e: Exception) {
                 _state.update {
                     it.copy(

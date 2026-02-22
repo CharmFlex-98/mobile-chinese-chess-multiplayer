@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.navigation.RouteNavigator
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.*
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.GameRepository
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.session.SessionManager
 import com.charmflex.xiangqi.engine.ai.AiDifficulty
 import com.charmflex.xiangqi.engine.ai.AiEngine
 import com.charmflex.xiangqi.engine.rules.GameRules
@@ -24,7 +25,8 @@ import org.koin.core.annotation.Factory
 @Factory
 class GameRoomViewModel(
     private val gameRepository: GameRepository,
-    private val routeNavigator: RouteNavigator
+    private val routeNavigator: RouteNavigator,
+    private val sessionManager: SessionManager
 ) : ViewModel() {
     private val _state = MutableStateFlow(GameState())
     val state: StateFlow<GameState> = _state.asStateFlow()
@@ -64,11 +66,10 @@ class GameRoomViewModel(
             if (_state.value.gameMode == GameMode.ONLINE) {
                 _state.value.onlineInfo?.roomId?.let {
                     gameRepository.abandonGame(it)
-                    routeNavigator.pop()
                 }
             }
+            routeNavigator.pop()
         }
-
     }
 
     fun startSpectating(roomId: String, redPlayerName: String, blackPlayerName: String) {
@@ -209,6 +210,16 @@ class GameRoomViewModel(
                             currentTurn = currentTurn.opponent
                         }
                         val status = GameRules.getGameStatus(board, currentTurn)
+                        val myId = sessionManager.currentUserSession.value?.id
+                        val restoredChat = msg.chatHistory.map { chat ->
+                            ChatMessage(
+                                senderId = chat.senderId,
+                                senderName = chat.senderName,
+                                message = chat.message,
+                                timestamp = chat.timestamp,
+                                isFromMe = chat.senderId == myId
+                            )
+                        }
                         _state.update {
                             it.copy(
                                 board = board,
@@ -220,8 +231,16 @@ class GameRoomViewModel(
                                 onlineInfo = it.onlineInfo?.copy(
                                     redTimeMillis = msg.redTimeMillis,
                                     blackTimeMillis = msg.blackTimeMillis
-                                )
+                                ),
+                                chatMessages = restoredChat
                             )
+                        }
+                    }
+                    is XpUpdate -> {
+                        println("[GAME] XP update: +${msg.xpGained} xp, newXp=${msg.newXp}, level ${msg.oldLevel}->${msg.newLevel}")
+                        sessionManager.updateXp(msg.newXp, msg.newLevel)
+                        if (msg.newLevel > msg.oldLevel) {
+                            sessionManager.setPendingLevelUp(msg.newLevel)
                         }
                     }
                     is DrawOffered -> {

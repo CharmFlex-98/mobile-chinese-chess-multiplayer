@@ -68,6 +68,8 @@ kotlin {
             implementation(libs.compose.navigation)
             implementation(libs.compose.navigation.backhandler)
             api(libs.koin.annotation)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

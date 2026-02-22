@@ -1,3 +1,5 @@
+import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
+
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.spring") version "2.0.21"
@@ -49,4 +51,18 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+
+tasks.named<BootBuildImage>("bootBuildImage") {
+    val dockerUsername = System.getenv("DOCKER_LOGIN_USERNAME")
+    val dockerPassword = System.getenv("DOCKER_LOGIN_PW")
+    imageName.set("charmflex/server-${project.name}")
+    publish.set(true)
+    docker {
+        publishRegistry {
+            username.set(dockerUsername)
+            password.set(dockerPassword)
+        }
+    }
 }

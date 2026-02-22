@@ -14,7 +14,8 @@ import java.util.concurrent.ConcurrentHashMap
 class GameOrchestrator(
     private val gameService: GameService,
     private val sessionRegistry: SessionRegistry,
-    private val persistenceService: PlayerPersistenceService
+    private val persistenceService: PlayerPersistenceService,
+    private val discordService: DiscordService
 ) {
     private val log = LoggerFactory.getLogger(GameOrchestrator::class.java)
     // sessionId -> playerId
@@ -75,6 +76,7 @@ class GameOrchestrator(
                 GameOverPayload(roomId = roomId, result = gameOverResult, reason = reason)
             ))
             grantXpForGameOver(roomId, gameOverResult)
+            discordService.notifyGameOver(roomId, gameOverResult, reason)
             finishRoom(roomId)
         }
 
@@ -217,7 +219,7 @@ class GameOrchestrator(
         if (grantXp) {
             grantXpForGameOver(roomId, result)
         }
-
+        discordService.notifyGameOver(roomId, result, reason)
         finishRoom(roomId)
     }
 
@@ -267,6 +269,7 @@ class GameOrchestrator(
         val player = sessionPlayerMap[sessionId] ?: return
         val room = gameService.getRoom(roomId) ?: return
         val isSpectator = room.spectators.containsKey(player.id)
+        val timestamp = System.currentTimeMillis()
         broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
             WsType.CHAT_RECEIVE,
             ChatReceivePayload(
@@ -274,10 +277,38 @@ class GameOrchestrator(
                 senderId = player.id,
                 senderName = player.name,
                 message = message,
-                timestamp = System.currentTimeMillis(),
+                timestamp = timestamp,
                 isSpectator = isSpectator
             )
         ), excludeSessionId = sessionId)
+        room.chatHistory.add(ChatEntry(player.id, player.name, message, timestamp, isSpectator))
+        discordService.notifyChat(player.name, message, roomId)
+    }
+
+    fun handleAdminChat(roomId: String, message: String): Boolean {
+        val room = gameService.getRoom(roomId) ?: return false
+        val botPlayer = if (room.redPlayer?.isBot() == true) {
+            room.redPlayer
+        } else if (room.blackPlayer?.isBot() == true) {
+            room.blackPlayer
+        } else {
+            null
+        }
+        if (botPlayer == null) return true
+
+        val timestamp = System.currentTimeMillis()
+        val payload = ChatReceivePayload(
+            roomId = roomId,
+            senderId = botPlayer.id,
+            senderName = botPlayer.name,
+            message = message,
+            timestamp = timestamp
+        )
+        broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(WsType.CHAT_RECEIVE, payload))
+        room.chatHistory.add(ChatEntry("bot", "Bot", message, timestamp))
+        discordService.notifyChat("Bot (Admin Reply)", message, roomId)
+        log.info("[ORCH] Admin chat sent to room {}: {}", roomId, message)
+        return true
     }
 
     fun handleGlobalChatSend(sessionId: String, message: String) {
@@ -365,7 +396,8 @@ class GameOrchestrator(
             val redTimeMillis: Long,
             val blackTimeMillis: Long,
             val spectatorAdded: Boolean,
-            val gameStarted: Boolean
+            val gameStarted: Boolean,
+            val chatHistory: List<ChatEntry>
         )
 
         val snap = synchronized(room) {
@@ -386,7 +418,8 @@ class GameOrchestrator(
                 redTimeMillis = room.redTimeMillis,
                 blackTimeMillis = room.blackTimeMillis,
                 spectatorAdded = spectatorAdded,
-                gameStarted = room.gameStarted
+                gameStarted = room.gameStarted,
+                chatHistory = room.chatHistory.toList()
             )
         }
 
@@ -416,7 +449,10 @@ class GameOrchestrator(
                     timeControlSeconds = snap.timeControlSeconds,
                     moves = snap.moves,
                     redTimeMillis = snap.redTimeMillis,
-                    blackTimeMillis = snap.blackTimeMillis
+                    blackTimeMillis = snap.blackTimeMillis,
+                    chatHistory = snap.chatHistory.map { e ->
+                        ChatReceivePayload(roomId, e.senderId, e.senderName, e.message, e.timestamp, e.isSpectator)
+                    }
                 )
             ))
             return
@@ -440,7 +476,10 @@ class GameOrchestrator(
                     timeControlSeconds = snap.timeControlSeconds,
                     moves = snap.moves,
                     redTimeMillis = snap.redTimeMillis,
-                    blackTimeMillis = snap.blackTimeMillis
+                    blackTimeMillis = snap.blackTimeMillis,
+                    chatHistory = snap.chatHistory.map { e ->
+                        ChatReceivePayload(roomId, e.senderId, e.senderName, e.message, e.timestamp, e.isSpectator)
+                    }
                 )
             ))
             broadcastToRoom(roomId, WsMessageBuilder.buildGameMessage(
@@ -470,6 +509,7 @@ class GameOrchestrator(
                             timeControlSeconds = snap.timeControlSeconds
                         )
                     ))
+//                    discordService.notifyGameStarted(roomId, snap.redPlayer.name, snap.blackPlayer.name)
                 }
             }
         }
@@ -477,7 +517,12 @@ class GameOrchestrator(
 
     fun handleRoomAbandon(sessionId: String, roomId: String) {
         val player = sessionPlayerMap[sessionId] ?: return
-        val abandonGameResult = gameService.abandonGame(roomId, player.id) ?: return
+        val abandonGameResult = gameService.abandonGame(roomId, player.id) ?: run {
+            val room = gameService.getRoom(roomId)
+            discordService.notifyDestroyRoomWhileWaiting(roomId, room?.name ?: "--UNKNOWN--", player.name)
+            finishRoom(roomId)
+            return
+        }
 
         val (room, forfeitResult) = abandonGameResult
         handleGameOver(roomId, forfeitResult, "abandonment")
@@ -502,21 +547,28 @@ class GameOrchestrator(
     private fun finishRoom(roomId: String) {
         botService.onGameOver(roomId)
         gameService.removeRoom(roomId)
+        discordService.removeRoom(roomId)
     }
 
     private fun grantXpForGameOver(roomId: String, result: String) {
         val room = gameService.getRoom(roomId) ?: return
         val isVsBot = gameService.roomHasBot(roomId)
-        val xpGain = if (isVsBot) 30 else 50
+        val xpGain = 35
 
         val winnerId = when (result) {
             "red_wins" -> room.redPlayer?.id
             "black_wins" -> room.blackPlayer?.id
             else -> null // draw
+        } ?: return
+
+        if (winnerId.startsWith("bot-")) {
+            // Bot wins: persist XP to DB for leaderboard, but no WS notification (no real session)
+            persistenceService.persistXpGain(winnerId, xpGain)
+            log.info("[ORCH] Bot XP persisted: bot={} +{}xp", winnerId, xpGain)
+            return
         }
 
-        if (winnerId == null || winnerId.startsWith("bot-")) return
-
+        val oldLevel = sessionPlayerMap.filterValues { it.id == winnerId }.values.firstOrNull()?.level ?: 1
         val winner = persistenceService.persistXpGain(winnerId, xpGain)
         val winnerSessionId = winner?.let {
             sessionPlayerMap
@@ -529,9 +581,8 @@ class GameOrchestrator(
         sessionPlayerMap.computeIfPresent(winnerSessionId) { _, _ -> winner }
         sessionRegistry.sendToSession(winnerSessionId, WsMessageBuilder.buildGameMessage(
             WsType.XP_UPDATE,
-            XpUpdatePayload(newXp = winner.xp, newLevel = winner.level, xpGained = xpGain)
+            XpUpdatePayload(newXp = winner.xp, newLevel = winner.level, xpGained = xpGain, oldLevel = oldLevel)
         ))
-
 
         log.info("[ORCH] XP granted: player={} +{}xp newXp={} newLevel={}", winner.name, xpGain, winner.xp, winner.level)
     }

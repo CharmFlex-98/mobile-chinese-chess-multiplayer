@@ -8,5 +8,9 @@ data class User(
     val token: String,
     val name: String,
     val email: String?,
-    val isGuest: Boolean
+    val isGuest: Boolean,
+    val xp: Int = 0,
+    val level: Int = 1,
+    val avatarUrl: String? = null,
+    val admin: Boolean = false
 )

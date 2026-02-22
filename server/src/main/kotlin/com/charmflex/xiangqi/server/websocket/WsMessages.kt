@@ -78,7 +78,8 @@ data class GameStatePayload(
     val timeControlSeconds: Int,
     val moves: List<MoveDto>,
     val redTimeMillis: Long,
-    val blackTimeMillis: Long
+    val blackTimeMillis: Long,
+    val chatHistory: List<ChatReceivePayload> = emptyList()
 )
 
 @Serializable
@@ -130,7 +131,7 @@ data class SpectatorJoinedPayload(val roomId: String, val spectator: Player)
 data class SpectatorLeftPayload(val roomId: String, val spectatorId: String)
 
 @Serializable
-data class XpUpdatePayload(val newXp: Int, val newLevel: Int, val xpGained: Int)
+data class XpUpdatePayload(val newXp: Int, val newLevel: Int, val xpGained: Int, val oldLevel: Int = 1)
 
 @Serializable
 data class ErrorPayload(val code: String, val message: String)

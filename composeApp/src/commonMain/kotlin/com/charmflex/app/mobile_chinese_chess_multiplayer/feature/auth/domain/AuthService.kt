@@ -3,7 +3,6 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.data.SupabaseAuthClient
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.repository.AuthRepository
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.session.SessionManager
-import io.ktor.client.plugins.observer.ResponseObserver
 import org.koin.core.annotation.Factory
 
 @Factory
@@ -20,14 +19,18 @@ class AuthService(
         val res = authRepository.handleUserAuthenticated()
         if (res.isSuccess) {
             val user = res.getOrNull()
-            if (user == null) return Result.failure(Exception("User is null"))
+            if (user == null) return Result.failure(Exception("Failed to login"))
 
             sessionManager.onLogin(
                 token = user.token,
                 id = user.id,
                 name = user.name,
                 email = user.email,
-                isGuest = user.isGuest
+                isGuest = user.isGuest,
+                xp = user.xp,
+                level = user.level,
+                avatarUrl = user.avatarUrl,
+                isAdmin = user.admin
             )
             return Result.success(Unit)
         }
@@ -40,15 +43,19 @@ class AuthService(
         if (res.isSuccess) {
             val user = res.getOrNull()
             if (user == null) {
-                return Result.failure(Exception("User is null"))
+                return Result.failure(SessionNotFound)
             }
 
             sessionManager.onLogin(
                 name = user.name,
-                id =  user.id,
+                id = user.id,
                 token = user.token,
                 email = user.email,
-                isGuest = user.isGuest
+                isGuest = user.isGuest,
+                xp = user.xp,
+                level = user.level,
+                avatarUrl = user.avatarUrl,
+                isAdmin = user.admin
             )
 
             return Result.success(Unit)
@@ -64,3 +71,5 @@ class AuthService(
         sessionManager.onLogout()
     }
 }
+
+object SessionNotFound : Exception()

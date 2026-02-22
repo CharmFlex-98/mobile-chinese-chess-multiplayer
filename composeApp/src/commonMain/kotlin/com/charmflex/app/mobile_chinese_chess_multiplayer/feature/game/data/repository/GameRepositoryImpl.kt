@@ -9,10 +9,14 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.core.utils.resultOf
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.model.MoveDto
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.ActiveGameInfo
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.ActiveRoomsResponse
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.AdminChatRequest
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.BattleRoom
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomRequest
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomResponse
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.JoinRoomRequest
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.GameRepository
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.LeaderboardEntry
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.LeaderboardResponse
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.network.GameChannel
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.network.GlobalChatChannel
 import com.charmflex.xiangqi.engine.model.Move
@@ -96,9 +100,9 @@ class GameRepositoryImpl(
         }
     }
 
-    override suspend fun joinRoom(roomId: String): Result<BattleRoom> {
+    override suspend fun joinRoom(roomId: String, password: String?): Result<BattleRoom> {
         return resultOf {
-            val response: BattleRoom = networkClient.usePost("/api/rooms/${roomId}/join", Unit) {
+            val response: BattleRoom = networkClient.usePost("/api/rooms/${roomId}/join", JoinRoomRequest(password)) {
                 add(NetworkAttributes.needToken)
             }
             response
@@ -157,5 +161,22 @@ class GameRepositoryImpl(
 
     override suspend fun reportGameOver(roomId: String, result: String, reason: String) {
         gameChannel.reportGameOver(roomId, result, reason)
+    }
+
+    override suspend fun getLeaderboard(): Result<List<LeaderboardEntry>> {
+        return resultOf {
+            val response: LeaderboardResponse = networkClient.useGet("/api/public/leaderboard") {
+                add(NetworkAttributes.needToken)
+            }
+            response.entries
+        }
+    }
+
+    override suspend fun sendAdminMessage(roomId: String, message: String): Result<Unit> {
+        return resultOf {
+            networkClient.usePost("/api/admin/rooms/$roomId/chat", AdminChatRequest(message)) {
+                add(NetworkAttributes.needToken)
+            }
+        }
     }
 }

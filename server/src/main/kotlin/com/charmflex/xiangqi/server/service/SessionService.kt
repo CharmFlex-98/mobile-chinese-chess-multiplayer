@@ -8,7 +8,8 @@ import org.springframework.web.socket.PingMessage
 
 @Service
 class SessionService(
-    private val sessionRegistry: SessionRegistry
+    private val sessionRegistry: SessionRegistry,
+    private val gameService: GameService
 ) {
 
     @Scheduled(fixedRate = 5000)
@@ -20,6 +21,11 @@ class SessionService(
                 session.close()
             }
         }
+    }
+
+    @Scheduled(fixedRate = 1_800_000)
+    fun cleanUpExpiredRoom() {
+        gameService.removeStaledRoom()
     }
 
     @Scheduled(fixedRate = 5000)

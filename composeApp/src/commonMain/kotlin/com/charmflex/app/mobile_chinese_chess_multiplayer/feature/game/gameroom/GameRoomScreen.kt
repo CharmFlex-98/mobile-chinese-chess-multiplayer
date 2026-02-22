@@ -34,8 +34,20 @@ fun GameRoomScreen(
     val state by viewModel.state.collectAsState()
     var showGameOverDialog by remember { mutableStateOf(false) }
 
+    val isSpectator = state.isSpectator
+    val isOnline = state.gameMode == GameMode.ONLINE
+
     BackHandler {
-        viewModel.quitConfirmation(true)
+        if (isSpectator) {
+            onBack?.invoke()
+            return@BackHandler
+        }
+
+        if (isOnline && state.status != GameStatus.PLAYING) {
+            onBack?.invoke()
+        } else {
+            viewModel.quitConfirmation(true)
+        }
     }
 
     LaunchedEffect(state.status) {
@@ -43,9 +55,6 @@ fun GameRoomScreen(
             showGameOverDialog = true
         }
     }
-
-    val isSpectator = state.isSpectator
-    val isOnline = state.gameMode == GameMode.ONLINE
     val onlineInfo = state.onlineInfo
     // Flip the board when the local player is BLACK in online mode (not for spectators)
     val isFlipped = isOnline && !isSpectator && onlineInfo?.playerColor == PieceColor.BLACK
@@ -152,6 +161,27 @@ fun GameRoomScreen(
                                 style = AppTypography.titleMedium,
                                 color = Color.White
                             )
+                            val roomId = state.onlineInfo?.roomId
+                            if (roomId != null) {
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "Room ID:",
+                                    style = AppTypography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                                Text(
+                                    roomId,
+                                    style = AppTypography.titleMedium,
+                                    color = GoldPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Share this with a friend",
+                                    style = AppTypography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.4f)
+                                )
+                            }
                         }
                     }
                 }
@@ -202,32 +232,33 @@ fun GameRoomScreen(
                         Text("Leave Room", color = Color(0xFFCE93D8), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 } else {
-                    if (onBack != null) {
-                        OutlinedButton(
-                            onClick = onBack,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-                        ) {
-                            Text("Menu", color = TextGray, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
                     if (isOnline) {
-                        Button(
-                            onClick = { viewModel.offerDraw() },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.2f)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Draw", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                        OutlinedButton(
-                            onClick = { viewModel.resignOnline() },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))
-                        ) {
-                            Text("Resign", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        if (state.status != GameStatus.PLAYING) {
+                            OutlinedButton(
+                                onClick = { onBack?.invoke() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                            ) {
+                                Text("Leave Room", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                        } else {
+                            Button(
+                                onClick = { viewModel.offerDraw() },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.2f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Draw", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.resignOnline() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))
+                            ) {
+                                Text("Resign", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
                         }
                     } else {
                         Button(

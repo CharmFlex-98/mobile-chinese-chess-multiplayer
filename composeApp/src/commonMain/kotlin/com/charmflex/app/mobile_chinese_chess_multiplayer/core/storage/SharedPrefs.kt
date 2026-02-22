@@ -26,6 +26,10 @@ internal class SharedPrefsImpl(
         return settings.getInt(key, default)
     }
 
+    override fun remove(key: String) {
+        settings.remove(key)
+    }
+
     override fun setString(key: String, value: String) {
         settings[key] = value
     }
@@ -68,6 +72,7 @@ interface SharedPrefs {
 
     fun setInt(key: String, value: Int)
     fun getInt(key: String, default: Int): Int
+    fun remove(key: String)
     fun setString(key: String, value: String)
 
     fun getString(key: String, default: String): String

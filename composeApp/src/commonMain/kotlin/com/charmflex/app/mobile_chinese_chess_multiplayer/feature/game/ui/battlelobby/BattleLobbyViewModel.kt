@@ -3,6 +3,7 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.ui.battl
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.network.*
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.ui.ToastManager
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.ActiveGameInfo
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.BattleRoom
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.game.domain.repository.CreateRoomRequest
@@ -18,7 +19,8 @@ import org.koin.core.annotation.Factory
 @Factory
 class BattleLobbyViewModel(
     private val gameRepository: GameRepository,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val toastManager: ToastManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BattleLobbyState())
@@ -80,7 +82,7 @@ class BattleLobbyViewModel(
         }
     }
 
-    fun startMatchmaking(timeControlSeconds: Int = 600) {
+    fun startMatchmaking(timeControlSeconds: Int = 1800) {
         if (_state.value.isGuest) {
             _state.update { it.copy(error = "Sign in to play multiplayer") }
             return
@@ -157,14 +159,14 @@ class BattleLobbyViewModel(
         }
     }
 
-    fun joinRoom(roomId: String) {
+    fun joinRoom(roomId: String, password: String? = null) {
         if (_state.value.isGuest) {
             _state.update { it.copy(error = "Sign in to join rooms") }
             return
         }
         println("[LOBBY] Joining room: $roomId")
         viewModelScope.launch {
-            gameRepository.joinRoom(roomId)
+            gameRepository.joinRoom(roomId, password)
                 .onSuccess { room ->
                     println("[LOBBY] Joined room OK: ${room.id} host=${room.host?.name}")
                     _state.update {
@@ -178,19 +180,19 @@ class BattleLobbyViewModel(
                 }
                 .onFailure { e ->
                     println("[LOBBY] Join room FAILED: ${e.message}")
-                    _state.update { it.copy(error = e.message) }
+                    _state.update { it.copy(error = "join room failed") }
                 }
         }
     }
 
-    fun createRoom(name: String, timeControlSeconds: Int = 600, isPrivate: Boolean = false) {
+    fun createRoom(name: String, timeControlSeconds: Int = 1800, isPrivate: Boolean = false, password: String? = null) {
         if (_state.value.isGuest) {
             _state.update { it.copy(error = "Sign in to create rooms") }
             return
         }
         println("[LOBBY] Creating room: $name")
         viewModelScope.launch {
-            gameRepository.createRoom(CreateRoomRequest(name, timeControlSeconds, isPrivate))
+            gameRepository.createRoom(CreateRoomRequest(name, timeControlSeconds, isPrivate, password))
                 .onSuccess { res ->
                     println("[LOBBY] Room created: ${res.roomId}")
                     _state.update {
@@ -276,6 +278,34 @@ class BattleLobbyViewModel(
         viewModelScope.launch { gameRepository.abandonGame(roomId) }
     }
 
+    fun showCreateRoomDialog() {
+        if (_state.value.isGuest) {
+            _state.update { it.copy(error = "Sign in to create rooms") }
+            return
+        }
+        _state.update { it.copy(showCreateRoomDialog = true) }
+    }
+
+    fun dismissCreateRoomDialog() {
+        _state.update { it.copy(showCreateRoomDialog = false) }
+    }
+
+    fun showJoinByIdDialog() {
+        if (_state.value.isGuest) {
+            _state.update { it.copy(error = "Sign in to join rooms") }
+            return
+        }
+        _state.update { it.copy(showJoinByIdDialog = true) }
+    }
+
+    fun dismissJoinByIdDialog() {
+        _state.update { it.copy(showJoinByIdDialog = false) }
+    }
+
+    fun showErrorSnackBar(error: String) {
+        toastManager.postError(error)
+    }
+
     fun dismissError() {
         _state.update { it.copy(error = null) }
     }
@@ -308,7 +338,9 @@ data class BattleLobbyState(
     val watchRoomId: String? = null,
     val watchRedPlayerName: String = "",
     val watchBlackPlayerName: String = "",
-    val rejoinInfo: RejoinInfo? = null
+    val rejoinInfo: RejoinInfo? = null,
+    val showCreateRoomDialog: Boolean = false,
+    val showJoinByIdDialog: Boolean = false
 )
 
 enum class MatchmakingStatus {

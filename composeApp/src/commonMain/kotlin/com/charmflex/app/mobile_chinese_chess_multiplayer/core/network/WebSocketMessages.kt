@@ -47,7 +47,7 @@ data class MakeMove(
 @Serializable
 @SerialName("queue_join")
 data class QueueJoin(
-    val timeControlSeconds: Int = 600
+    val timeControlSeconds: Int = 1800
 ) : GameClientMessage() {
     override val type: String get() = "queue_join"
 }
@@ -178,7 +178,8 @@ data class RoomSnapshot(
     val timeControlSeconds: Int,
     val moves: List<MoveDto>,
     val redTimeMillis: Long,
-    val blackTimeMillis: Long
+    val blackTimeMillis: Long,
+    val chatHistory: List<ChatReceive> = emptyList()
 ) : WsServerMessage
 
 @Serializable
@@ -276,7 +277,8 @@ data class SpectatorLeft(
 data class XpUpdate(
     val newXp: Int,
     val newLevel: Int,
-    val xpGained: Int
+    val xpGained: Int,
+    val oldLevel: Int = 1
 ) : WsServerMessage
 
 // ---- Server-to-client messages (global scene) ----

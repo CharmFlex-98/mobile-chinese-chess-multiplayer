@@ -10,5 +10,8 @@ data class LoginVerifyResponse(
     val token: String,
     val uid: String,
     val displayName: String,
-    val guest: Boolean
+    val guest: Boolean,
+    val xp: Int = 0,
+    val level: Int = 1,
+    val admin: Boolean = false
 )

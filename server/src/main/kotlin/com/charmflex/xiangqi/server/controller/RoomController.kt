@@ -3,11 +3,13 @@ package com.charmflex.xiangqi.server.controller
 import com.charmflex.xiangqi.server.exception.ResourcesNotFound
 import com.charmflex.xiangqi.server.exception.UnauthorizedException
 import com.charmflex.xiangqi.server.model.*
+import com.charmflex.xiangqi.server.service.DiscordService
+import com.charmflex.xiangqi.server.service.GameOrchestrator
 import com.charmflex.xiangqi.server.service.GameService
 import com.charmflex.xiangqi.server.service.JwtValidator
 import com.charmflex.xiangqi.server.service.PlayerPersistenceService
-import jakarta.annotation.Resource
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.security.oauth2.jwt.Jwt
@@ -18,7 +20,10 @@ import org.springframework.web.bind.annotation.*
 class RoomController(
     private val gameService: GameService,
     private val jwtValidator: JwtValidator,
-    private val playerPersistenceService: PlayerPersistenceService
+    private val playerPersistenceService: PlayerPersistenceService,
+    private val discordService: DiscordService,
+    private val gameOrchestrator: GameOrchestrator,
+    @Value("\${admin.player-ids}") private val adminPlayerIds: String
 ) {
     private val log = LoggerFactory.getLogger(RoomController::class.java)
 
@@ -40,14 +45,18 @@ class RoomController(
 
         log.info("[API] Supabase login: userId={} name={}", body.uid.take(8), body.displayName)
         val player = playerPersistenceService.getOrCreatePlayer(body.uid, body.displayName)
-        log.info("[API] Supabase player: id={} name={}", player.id.take(8), player.name)
+        val isAdmin = isAdmin(jwtResult.userId)
+        log.info("[API] Supabase player: id={} name={} xp={} level={} admin={}", player.id.take(8), player.name, player.xp, player.level, isAdmin)
 
         return ResponseEntity.ok(
             LoginVerifyResponse(
                 token = body.token,
                 uid = jwtResult.userId,
                 displayName = body.displayName,
-                guest = false
+                guest = false,
+                xp = player.xp,
+                level = player.level,
+                admin = isAdmin
             )
         )
     }
@@ -73,6 +82,16 @@ class RoomController(
         )
     }
 
+    @GetMapping("/public/leaderboard")
+    fun getLeaderboard(): ResponseEntity<LeaderboardResponse> {
+        val players = playerPersistenceService.getTopPlayersByXp()
+        val entries = players.mapIndexed { _, entity ->
+            LeaderboardEntry(name = entity.name, xp = entity.xp, level = entity.level)
+        }
+        log.info("[API] GET /public/leaderboard -> {} entries", entries.size)
+        return ResponseEntity.ok(LeaderboardResponse(entries = entries))
+    }
+
     @GetMapping("/rooms")
     fun getActiveRooms(): ResponseEntity<ActiveRoomsResponse> {
         val rooms = gameService.getActiveRooms().map { it.toResponse() }
@@ -89,18 +108,24 @@ class RoomController(
         val userId = jwt.subject
         val player = playerPersistenceService.findById(userId)?.toPlayer() ?: throw ResourcesNotFound
 
-        val room = gameService.createRoom(player, body.name, body.timeControlSeconds, body.isPrivate)
+        val room = gameService.createRoom(player, body.name, body.timeControlSeconds, body.isPrivate, body.password)
         return ResponseEntity.ok(CreateRoomResponse(roomId = room.id))
     }
 
     @PostMapping("/rooms/{roomId}/join")
     fun joinRoom(
         @PathVariable roomId: String,
+        @RequestBody(required = false) body: JoinRoomRequest? = null,
         authentication: Authentication
     ): ResponseEntity<BattleRoomResponse> {
         val jwt = (authentication.principal as? Jwt) ?: throw UnauthorizedException
         val userId = jwt.subject
         val player = playerPersistenceService.findById(userId)?.toPlayer() ?: throw ResourcesNotFound
+
+        if (!gameService.validateRoomPassword(roomId, body?.password)) {
+            log.warn("[API] Join room REJECTED (wrong password): room={} player={}", roomId, player.name)
+            return ResponseEntity.status(403).build()
+        }
 
         val room = gameService.joinRoom(roomId, player)
             ?: run {
@@ -110,6 +135,23 @@ class RoomController(
 
         log.info("[API] Joined room: id={} red={} black={} status={}", room.id, room.redPlayer?.name, room.blackPlayer?.name, room.status)
         return ResponseEntity.ok(room.toResponse())
+    }
+
+    @PostMapping("/admin/rooms/{roomId}/chat")
+    fun adminChat(
+        @PathVariable roomId: String,
+        @RequestBody body: AdminChatRequest,
+        authentication: Authentication
+    ): ResponseEntity<Unit> {
+        val jwt = (authentication.principal as? Jwt) ?: throw UnauthorizedException
+        if (!isAdmin(jwt.subject)) throw UnauthorizedException
+        val sent = gameOrchestrator.handleAdminChat(roomId, body.message)
+        return if (sent) ResponseEntity.ok().build() else ResponseEntity.notFound().build()
+    }
+
+    private fun isAdmin(userId: String): Boolean {
+        if (adminPlayerIds.isBlank()) return false
+        return adminPlayerIds.split(",").any { it.trim() == userId }
     }
 
     private fun extractToken(auth: String?): String? {
@@ -124,6 +166,7 @@ class RoomController(
         guest = blackPlayer,
         status = status.name.lowercase(),
         timeControlSeconds = timeControlSeconds,
-        isPrivate = private
+        isPrivate = private,
+        hasPassword = password != null
     )
 }

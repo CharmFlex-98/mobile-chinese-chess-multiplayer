@@ -8,7 +8,6 @@ import org.koin.core.annotation.Singleton
 
 @Singleton
 class AuthLocalStorage(
-    private val settings: Settings = Settings(),
     private val sharedPrefs: SharedPrefs
 ) {
     fun saveSession(user: User, refreshToken: String = "") {
@@ -18,6 +17,10 @@ class AuthLocalStorage(
         sharedPrefs.setBoolean(KEY_IS_GUEST, user.isGuest)
         sharedPrefs.setString(KEY_ACCESS_TOKEN, user.token)
         sharedPrefs.setString(KEY_REFRESH_TOKEN, refreshToken)
+        sharedPrefs.setInt(KEY_PLAYER_XP, user.xp)
+        sharedPrefs.setInt(KEY_PLAYER_LVL, user.level)
+        user.avatarUrl?.let { sharedPrefs.setString(KEY_PROFILE_URL, it) }
+        sharedPrefs.setBoolean(KEY_PROFILE_ADMIN, user.admin)
     }
 
     fun getSession(): User? {
@@ -26,25 +29,35 @@ class AuthLocalStorage(
         val accessToken = sharedPrefs.getString(KEY_ACCESS_TOKEN, "").ifEmpty {  return null }
         val name = sharedPrefs.getString(KEY_DISPLAY_NAME, "").ifEmpty {  return null }
         val uid = sharedPrefs.getString(KEY_USER_ID, "").ifEmpty {  return null }
+        val xp = sharedPrefs.getInt(KEY_PLAYER_XP, 0)
+        val level = sharedPrefs.getInt(KEY_PLAYER_LVL, 1)
+        val profileUrl = sharedPrefs.getString(KEY_PROFILE_URL, "").ifEmpty {  return null }
+        val isAdmin = sharedPrefs.getBoolean(KEY_PROFILE_ADMIN, false)
 
         return User(
             id = uid,
             token = accessToken,
             name = name,
             email = email,
-            isGuest = isGuest
+            isGuest = isGuest,
+            xp = xp,
+            level = level,
+            avatarUrl = profileUrl,
+            admin = isAdmin
         )
     }
 
-    fun getRefreshToken(): String? = settings.getStringOrNull(KEY_REFRESH_TOKEN)?.takeIf { it.isNotEmpty() }
-
     fun clear() {
-        settings.remove(KEY_USER_ID)
-        settings.remove(KEY_USER_EMAIL)
-        settings.remove(KEY_DISPLAY_NAME)
-        settings.remove(KEY_AUTH_TYPE)
-        settings.remove(KEY_ACCESS_TOKEN)
-        settings.remove(KEY_REFRESH_TOKEN)
+        sharedPrefs.remove(KEY_USER_ID)
+        sharedPrefs.remove(KEY_USER_EMAIL)
+        sharedPrefs.remove(KEY_DISPLAY_NAME)
+        sharedPrefs.remove(KEY_AUTH_TYPE)
+        sharedPrefs.remove(KEY_ACCESS_TOKEN)
+        sharedPrefs.remove(KEY_REFRESH_TOKEN)
+        sharedPrefs.remove(KEY_PLAYER_XP)
+        sharedPrefs.remove(KEY_PLAYER_LVL)
+        sharedPrefs.remove(KEY_PROFILE_URL)
+        sharedPrefs.remove(KEY_PROFILE_ADMIN)
     }
 
     companion object {
@@ -55,5 +68,9 @@ class AuthLocalStorage(
         private const val KEY_ACCESS_TOKEN = "auth_access_token"
         private const val KEY_REFRESH_TOKEN = "auth_refresh_token"
         private const val KEY_IS_GUEST = "auth_is_guest"
+        private const val KEY_PLAYER_XP = "player_xp"
+        private const val KEY_PLAYER_LVL = "player_lvl"
+        private const val KEY_PROFILE_URL = "profile_url"
+        private const val KEY_PROFILE_ADMIN = "profile_admin"
     }
 }

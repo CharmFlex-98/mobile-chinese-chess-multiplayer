@@ -3,7 +3,6 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.r
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.model.User
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.Flow
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 interface AuthRepository {
@@ -36,5 +35,8 @@ data class RegisterServerResponse(
     val uid: String,
     val token: String,
     val displayName: String,
-    val guest: Boolean
+    val guest: Boolean,
+    val xp: Int = 0,
+    val level: Int = 1,
+    val admin: Boolean = false
 )

@@ -39,10 +39,12 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(120.dp))
+            Spacer(Modifier.height(64.dp))
 
             // App title
             Text(

@@ -1,6 +1,15 @@
 server:
   port: 8080
 
+discord:
+  webhook:
+    url: ${DISCORD_WEBHOOK_URL}
+  bot:
+    token: ${DISCORD_BOT_TOKEN}
+
+admin:
+  player-ids: ${ADMIN_PLAYER_IDS}
+
 spring:
   application:
     name: xiangqi-server

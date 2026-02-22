@@ -15,7 +15,7 @@ interface GameRepository {
     suspend fun getMyActiveGame(): ActiveGameInfo?
     suspend fun createRoom(createRoomRequest: CreateRoomRequest): Result<CreateRoomResponse>
     suspend fun getActiveRooms(): Result<List<BattleRoom>>
-    suspend fun joinRoom(roomId: String): Result<BattleRoom>
+    suspend fun joinRoom(roomId: String, password: String? = null): Result<BattleRoom>
     suspend fun joinMatchmaking(timeControlSeconds: Int = 600)
     suspend fun leaveMatchmaking()
     suspend fun sendMove(roomId: String, move: Move)
@@ -28,14 +28,20 @@ interface GameRepository {
     suspend fun watchRoom(roomId: String)
     suspend fun abandonGame(roomId: String)
     suspend fun reportGameOver(roomId: String, result: String, reason: String)
+    suspend fun getLeaderboard(): Result<List<LeaderboardEntry>>
+    suspend fun sendAdminMessage(roomId: String, message: String): Result<Unit>
 }
 
 @Serializable
 data class CreateRoomRequest(
     val name: String,
     val timeControlSeconds: Int = 600,
-    val isPrivate: Boolean = false
+    val isPrivate: Boolean = false,
+    val password: String? = null
 )
+
+@Serializable
+data class JoinRoomRequest(val password: String? = null)
 
 @Serializable
 data class CreateRoomResponse(
@@ -50,7 +56,8 @@ data class BattleRoom(
     val guest: Player? = null,
     val status: String = "waiting",
     val timeControlSeconds: Int = 600,
-    val private: Boolean = false
+    val private: Boolean = false,
+    val hasPassword: Boolean = false
 ) {
     val isPlayingRoom: Boolean = guest != null && host != null
     val playingCount: Int
@@ -76,3 +83,18 @@ data class ActiveGameInfo(
     val redTimeMillis: Long,
     val blackTimeMillis: Long
 )
+
+@Serializable
+data class LeaderboardEntry(
+    val name: String,
+    val xp: Int,
+    val level: Int
+)
+
+@Serializable
+data class LeaderboardResponse(
+    val entries: List<LeaderboardEntry>
+)
+
+@Serializable
+data class AdminChatRequest(val message: String)

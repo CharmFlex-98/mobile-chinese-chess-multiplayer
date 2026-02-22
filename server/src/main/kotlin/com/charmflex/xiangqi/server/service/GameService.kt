@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
-class GameService {
+class GameService(
+    private val discordService: DiscordService
+) {
     private val log = LoggerFactory.getLogger(GameService::class.java)
     private val rooms = ConcurrentHashMap<String, GameRoom>()
     private val matchmakingQueue = ConcurrentHashMap<String, QueueEntry>()
@@ -28,23 +30,39 @@ class GameService {
         return player
     }
 
+    fun removeStaledRoom() {
+        val currentTime = System.currentTimeMillis()
+        rooms.values.filter {
+            it.gameStarted && (currentTime - it.lastMoveTimestamp) > 1_800_000
+        }.forEach {
+            finishGame(it.id)
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Room management
     // -------------------------------------------------------------------------
 
-    fun createRoom(player: Player, name: String, timeControlSeconds: Int, isPrivate: Boolean): GameRoom {
+    fun createRoom(player: Player, name: String, timeControlSeconds: Int, isPrivate: Boolean, password: String? = null): GameRoom {
         val room = GameRoom(
             name = name,
             redPlayer = player,
             timeControlSeconds = timeControlSeconds,
             private = isPrivate,
+            password = password,
             redTimeMillis = timeControlSeconds * 1000L,
             blackTimeMillis = timeControlSeconds * 1000L
         )
         rooms[room.id] = room
         roomBoards[room.id] = Board.initial()
-        log.info("[SVC] Room created: id={} name={} host={} (total rooms={})", room.id, name, player.name, rooms.size)
+        discordService.notifyRoomCreated(room.id, room.name, player.name)
         return room
+    }
+
+    fun validateRoomPassword(roomId: String, password: String?): Boolean {
+        val room = rooms[roomId] ?: return false
+        if (room.password == null) return true
+        return room.password == password
     }
 
     fun joinRoom(roomId: String, player: Player): GameRoom? {
@@ -65,8 +83,9 @@ class GameService {
             room.blackPlayer = player
             room.status = RoomStatus.PLAYING
             log.info("[SVC] joinRoom OK: room={} red={} black={} status=PLAYING", roomId, room.redPlayer?.name, player.name)
-            return room
         }
+        discordService.notifyRoomJoined(roomId, room.name, player.id, player.name)
+        return room
     }
 
     /**
@@ -85,7 +104,7 @@ class GameService {
     }
 
     fun getActiveRooms(): List<GameRoom> {
-        val active = rooms.values.filter { !it.private && it.status != RoomStatus.FINISHED }
+        val active = rooms.values.filter { it.status != RoomStatus.FINISHED }
         log.info("[SVC] getActiveRooms: {} active out of {} total", active.size, rooms.size)
         return active
     }

@@ -11,14 +11,11 @@ import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.re
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.repository.RegisterServerRequest
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.repository.RegisterServerResponse
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.storage.AuthLocalStorage
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.route.AuthRoute
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.home.route.HomeRoute
-import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.session.SessionManager
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Singleton
@@ -45,6 +42,9 @@ class AuthRepositoryImpl(
                 ?: return Result.failure(Exception("No user in session"))
             val displayName = supabaseAuthClient.currentDisplayName() ?: "Player"
             val email = supabaseAuthClient.currentUserEmail()
+            val avatarUrl = supabaseAuthClient.currentAvatarUrl()
+
+            val serverResponse = registerWithGameServer(RegisterServerRequest(uid = userId, displayName = displayName, token = accessToken))
 
             val authUser = User(
                 id = userId,
@@ -52,9 +52,12 @@ class AuthRepositoryImpl(
                 name = displayName,
                 email = email,
                 isGuest = false,
+                xp = serverResponse.xp,
+                level = serverResponse.level,
+                avatarUrl = avatarUrl,
+                admin = serverResponse.admin
             )
             authLocalStorage.saveSession(authUser)
-            registerWithGameServer(RegisterServerRequest(uid = authUser.id, displayName = authUser.name, token = authUser.token))
 
             Result.success(authUser)
         } catch (e: Exception) {
@@ -95,10 +98,10 @@ class AuthRepositoryImpl(
                         return Result.failure(Exception("Cannot obtain currentAccessToken from server"))
                     }
 
-                    val updatedUser = savedUser.copy(token = accessToken)
+                    val serverResponse = registerWithGameServer(RegisterServerRequest(uid = savedUser.id, displayName = savedUser.name, token = accessToken))
+                    val updatedUser = savedUser.copy(token = accessToken, admin = serverResponse.admin, xp = serverResponse.xp, level = serverResponse.level)
                     authLocalStorage.saveSession(updatedUser)
-                    registerWithGameServer(RegisterServerRequest(uid = updatedUser.id, displayName = updatedUser.name, token = updatedUser.token))
-                    routeNavigator.navigateTo(HomeRoute.ROOT)
+                    routeNavigator.navigateAndPopUpTo(HomeRoute.ROOT, AuthRoute.Login)
                     return Result.success(updatedUser)
                 }
                 authLocalStorage.clear()

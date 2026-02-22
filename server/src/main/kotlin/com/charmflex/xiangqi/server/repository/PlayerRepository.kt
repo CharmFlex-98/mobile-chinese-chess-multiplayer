@@ -13,4 +13,6 @@ interface PlayerRepository : JpaRepository<PlayerEntity, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM PlayerEntity p WHERE p.id = :id")
     fun findByIdForUpdate(id: String): Optional<PlayerEntity>
+
+    fun findTop50ByOrderByXpDesc(): List<PlayerEntity>
 }

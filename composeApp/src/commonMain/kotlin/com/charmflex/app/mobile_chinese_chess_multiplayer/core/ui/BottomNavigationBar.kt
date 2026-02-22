@@ -1,6 +1,5 @@
 package com.charmflex.app.mobile_chinese_chess_multiplayer.core.ui
 
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -23,14 +22,13 @@ fun BottomNavigationBar(
     val items = listOf(
         NavItem("home", "Home", "⌂"),
         NavItem("battle", "Battle", "⚔"),
-        NavItem("social", "Social", "♟"),
-        NavItem("settings", "Settings", "⚙")
+//        NavItem("social", "Social", "♟"),
+//        NavItem("settings", "Settings", "⚙")
     )
 
     NavigationBar(
         containerColor = BackgroundDeepDark.copy(alpha = 0.95f),
         tonalElevation = 0.dp,
-        modifier = Modifier.height(80.dp)
     ) {
         items.forEach { item ->
             val selected = currentRoute == item.route
