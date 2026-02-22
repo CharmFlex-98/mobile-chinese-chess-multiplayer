@@ -1,0 +1,5 @@
+services:
+  app:
+    image: charmflex/server-flexiexpensesmanager:latest
+    ports:
+      - "3012:8080"
