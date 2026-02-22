@@ -524,10 +524,19 @@ class GameOrchestrator(
      * Central cleanup for a finished game. Must be called AFTER grantXpForGameOver()
      * because XP granting needs the room to still exist for roomHasBot() lookup.
      */
-    private fun finishRoom(roomId: String) {
+    fun finishRoom(roomId: String) {
         botService.onGameOver(roomId)
         gameService.removeRoom(roomId)
         discordService.removeRoom(roomId)
+    }
+
+    fun removeStaledRoom() {
+        val currentTime = System.currentTimeMillis()
+        gameService.rooms.values.filter {
+            it.gameStarted && (currentTime - it.lastMoveTimestamp) > 1_800_000
+        }.forEach {
+            finishRoom(it.id)
+        }
     }
 
     private fun grantXpForGameOver(roomId: String, result: String) {

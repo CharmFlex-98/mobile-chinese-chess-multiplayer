@@ -12,7 +12,7 @@ class GameService(
     private val discordService: DiscordService
 ) {
     private val log = LoggerFactory.getLogger(GameService::class.java)
-    private val rooms = ConcurrentHashMap<String, GameRoom>()
+    val rooms = ConcurrentHashMap<String, GameRoom>()
     private val matchmakingQueue = ConcurrentHashMap<String, QueueEntry>()
 
     // roomId -> live board state; mirrors the move history for server-side game-status checks
