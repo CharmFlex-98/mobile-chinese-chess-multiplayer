@@ -10,8 +10,8 @@ enum class AiDifficulty(
     val timeLimitMs: Long = 0,
     val minDepth: Int = depth
 ) {
-    BEGINNER("Beginner", 1, 200),
-    EASY("Easy", 2, 100),
+    BEGINNER("Beginner", 2, 100),
+    EASY("Easy", 2, 70),
     MEDIUM("Medium", 3, 50),
     INTERMEDIATE("Intermediate", 4, 20),
     HARD("Hard", 5, 0),

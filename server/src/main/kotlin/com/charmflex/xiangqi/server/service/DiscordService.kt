@@ -92,7 +92,6 @@ class DiscordService(
             val threadId = objectMapper.readTree(response.body())["channel_id"]?.asText()
             if (!threadId.isNullOrBlank()) {
                 roomThreads[roomId] = threadId
-                log.info("[DISCORD] Thread created for room {}: threadId={}", roomId, threadId)
             } else {
                 log.warn("[DISCORD] Thread creation for room {} missing channel_id — response: {}", roomId, response.body())
             }

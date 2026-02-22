@@ -28,7 +28,6 @@ class WebSocketHandler(
     private val log = LoggerFactory.getLogger(WebSocketHandler::class.java)
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
-        log.info("[WS] Connection established: sessionId={} uri={}", session.id, session.uri)
         sessionRegistry.register(session.id, session)
         val params = session.uri?.query?.split("&")?.mapNotNull {
             val parts = it.split("=", limit = 2)

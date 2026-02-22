@@ -28,6 +28,7 @@ class BotService(
 
     // Daily game counters: bot name -> DailyCounter
     private data class DailyCounter(val date: LocalDate, val count: Int)
+
     private val botDailyCounts = ConcurrentHashMap<String, DailyCounter>()
 
     // Active bot game loops: roomId -> Job
@@ -112,9 +113,71 @@ class BotService(
             BotDef("Alexander Petrov", 0, AiDifficulty.EXPERT),
             BotDef("Hiroshi Tanaka", 0, AiDifficulty.EXPERT),
             BotDef("Omar Al-Farsi", 0, AiDifficulty.EXPERT),
-            BotDef("William Carter", 0, AiDifficulty.EXPERT)
+            BotDef("William Carter", 0, AiDifficulty.EXPERT),
 
-        )
+            // BEGINNER (4)
+            BotDef("Aisyah Rahim", 0, AiDifficulty.BEGINNER),
+            BotDef("Kelvin Chua", 0, AiDifficulty.BEGINNER),
+            BotDef("Naveen Kumar", 0, AiDifficulty.BEGINNER),
+            BotDef("Emily Wong", 0, AiDifficulty.BEGINNER),
+
+// EASY (8)
+            BotDef("Farid Hakimi", 0, AiDifficulty.EASY),
+            BotDef("Vanessa Lim", 0, AiDifficulty.EASY),
+            BotDef("Gopal Nair", 0, AiDifficulty.EASY),
+            BotDef("Sharon Lee", 0, AiDifficulty.EASY),
+            BotDef("Daniel Tan", 0, AiDifficulty.EASY),
+            BotDef("Aiman Zulkifli", 0, AiDifficulty.EASY),
+            BotDef("Rashmi Iyer", 0, AiDifficulty.EASY),
+            BotDef("Kevin Loh", 0, AiDifficulty.EASY),
+
+// MEDIUM (12)
+            BotDef("Marcus Lim", 0, AiDifficulty.MEDIUM),
+            BotDef("Hafiz Rahman", 0, AiDifficulty.MEDIUM),
+            BotDef("Jessica Tan", 0, AiDifficulty.MEDIUM),
+            BotDef("Arvind Rao", 0, AiDifficulty.MEDIUM),
+            BotDef("Samuel Wong", 0, AiDifficulty.MEDIUM),
+            BotDef("Chloe Martin", 0, AiDifficulty.MEDIUM),
+            BotDef("Izzat Fadhil", 0, AiDifficulty.MEDIUM),
+            BotDef("Nathaniel Goh", 0, AiDifficulty.MEDIUM),
+            BotDef("Deepa Krishnan", 0, AiDifficulty.MEDIUM),
+            BotDef("Jonathan Lim", 0, AiDifficulty.MEDIUM),
+            BotDef("Mei Xin Lau", 0, AiDifficulty.MEDIUM),
+            BotDef("Ryan Abdullah", 0, AiDifficulty.MEDIUM),
+
+// INTERMEDIATE (14)
+            BotDef("Firdaus Khalid", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Adrian Tan", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Samantha Lee", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Zul Hilmi", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Benjamin Lee", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Alicia Wong", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Haroon Siddiq", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Rachel Lim", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Vikram Nair", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Jason Ong", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Farah Nabila", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Nicholas Teo", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Priyanka Das", 0, AiDifficulty.INTERMEDIATE),
+            BotDef("Daniel Yap", 0, AiDifficulty.INTERMEDIATE),
+
+// HARD (8)
+            BotDef("Alexander Lim", 0, AiDifficulty.HARD),
+            BotDef("Rizwan Ahmad", 0, AiDifficulty.HARD),
+            BotDef("Leon Tan", 0, AiDifficulty.HARD),
+            BotDef("Wei Zhong Chen", 0, AiDifficulty.HARD),
+            BotDef("Arjun Pillai", 0, AiDifficulty.HARD),
+            BotDef("Sofia Martinez", 0, AiDifficulty.HARD),
+            BotDef("Karthik Menon", 0, AiDifficulty.HARD),
+            BotDef("David Ng", 0, AiDifficulty.HARD),
+
+// EXPERT (4)
+            BotDef("Ivan Volkov", 0, AiDifficulty.EXPERT),
+            BotDef("Kenji Nakamura", 0, AiDifficulty.EXPERT),
+            BotDef("Ahmad Zulfikar", 0, AiDifficulty.EXPERT),
+            BotDef("Sebastian Müller", 0, AiDifficulty.EXPERT),
+
+            )
 
         return defs.map { def ->
             BotPlayer(
@@ -362,9 +425,6 @@ class BotService(
         val room = gameService.createRoom(lobbyRedBot.player, "Matched Game", 1800, false)
         gameService.joinRoom(room.id, lobbyBlackBot.player)
         gameService.recordGameStart(room.id)
-
-        log.info("[BOT] Created bot-vs-bot game: room={} {} vs {}",
-            room.id, lobbyRedBot.player.name, lobbyBlackBot.player.name)
 
         val board = Board.initial()
         botBoards[room.id] = board
