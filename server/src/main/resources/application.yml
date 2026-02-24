@@ -4,6 +4,7 @@ server:
 discord:
   webhook:
     url: ${DISCORD_WEBHOOK_URL}
+    textUrl: ${DISCORD_WEBHOOK_URL_TEXT}
   bot:
     token: ${DISCORD_BOT_TOKEN}
 

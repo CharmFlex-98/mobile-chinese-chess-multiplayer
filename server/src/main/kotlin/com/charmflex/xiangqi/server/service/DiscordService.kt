@@ -17,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue
 @Service
 class DiscordService(
     @Value("\${discord.webhook.url}") private val webhookUrl: String,
+    @Value("\${discord.webhook.textUrl}") private val webhookUrlText: String,
     @Value("\${discord.bot.token}") private val botToken: String
 ) {
     private val log = LoggerFactory.getLogger(DiscordService::class.java)
@@ -190,7 +191,7 @@ class DiscordService(
     private fun enqueueWebhook(content: String, threadId: String? = null) {
         if (webhookUrl.isBlank()) return
         val body = objectMapper.writeValueAsString(mapOf("content" to content))
-        val url = if (threadId != null) "$webhookUrl?thread_id=$threadId" else webhookUrl
+        val url = if (threadId != null) "$webhookUrl?thread_id=$threadId" else webhookUrlText
         queue.offer(QueuedRequest(buildPostRequest(url, body)))
     }
 
