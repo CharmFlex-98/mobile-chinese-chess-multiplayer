@@ -4,5 +4,18 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.charmflex.xiangqi</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.charmflex.xiangqi</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

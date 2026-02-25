@@ -1,5 +1,6 @@
 package com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.di
 
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.data.SupabaseAuthClient
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.AuthService
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.repository.AuthRepository
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.ui.login.LoginViewModel

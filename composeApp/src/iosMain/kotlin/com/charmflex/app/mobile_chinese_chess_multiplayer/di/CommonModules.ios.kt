@@ -1,7 +1,10 @@
 package com.charmflex.app.mobile_chinese_chess_multiplayer.di
 
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.config.iOSCoreModule
 import org.koin.core.module.Module
 
 actual fun platformModules(): List<Module> {
-    return listOf()
+    return listOf(
+        iOSCoreModule()
+    )
 }

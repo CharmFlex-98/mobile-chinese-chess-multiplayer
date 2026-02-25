@@ -63,7 +63,7 @@ fun LoginScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(Modifier.height(64.dp))
+            Spacer(Modifier.weight(1f))
 
             // Sign in with Google button
             Button(
@@ -105,56 +105,6 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-
-            Spacer(Modifier.height(32.dp))
-
-            // Divider with "OR"
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = Color.White.copy(alpha = 0.1f)
-                )
-                Text(
-                    text = "  OR  ",
-                    color = Color.White.copy(alpha = 0.4f),
-                    style = AppTypography.labelSmall
-                )
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = Color.White.copy(alpha = 0.1f)
-                )
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            // Continue as Guest button
-            OutlinedButton(
-                onClick = viewModel::continueAsGuest,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                enabled = !state.isLoading
-            ) {
-                Text(
-                    text = "CONTINUE AS GUEST",
-                    style = AppTypography.labelLarge,
-                    color = GoldPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Guests can play local and AI games only",
-                color = Color.White.copy(alpha = 0.4f),
-                style = AppTypography.bodySmall,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(Modifier.height(32.dp))
         }
     }
 }

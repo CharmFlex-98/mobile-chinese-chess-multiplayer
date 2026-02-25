@@ -28,8 +28,19 @@ class SupabaseAuthClient {
         supabaseClient.auth.signInWith(Google)
     }
 
+    suspend fun signInAsGuest() {
+        supabaseClient.auth.signInAnonymously()
+    }
+
     suspend fun exchangeCodeForSession(code: String) {
         supabaseClient.auth.exchangeCodeForSession(code)
+    }
+
+    suspend fun handleDeepLink(urlString: String) {
+        val code = urlString.substringAfter("code=").substringBefore("&").trim()
+        if (code.isNotEmpty()) {
+            supabaseClient.auth.exchangeCodeForSession(code)
+        }
     }
 
     suspend fun signOut() {

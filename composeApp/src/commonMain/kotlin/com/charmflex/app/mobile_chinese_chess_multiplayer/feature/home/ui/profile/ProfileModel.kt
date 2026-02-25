@@ -15,5 +15,13 @@ data class Player(
         fun xpToNextLevel(level: Int): Int {
             return (100 * 1.025.pow(level - 1)).toInt()
         }
+
+        fun cumulativeXpForLevel(level: Int): Int {
+            var total = 0
+            for (l in 1 until level) {
+                total += xpToNextLevel(l)
+            }
+            return total
+        }
     }
 }

@@ -3,6 +3,8 @@ package com.charmflex.app.mobile_chinese_chess_multiplayer.di
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.di.CoreInjector
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.navigation.RouteNavigator
 import com.charmflex.app.mobile_chinese_chess_multiplayer.core.ui.ToastManager
+import com.charmflex.app.mobile_chinese_chess_multiplayer.core.utils.DeepLinkHandler
+import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.data.SupabaseAuthClient
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.di.AuthInjector
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.AuthService
 import com.charmflex.app.mobile_chinese_chess_multiplayer.feature.auth.domain.repository.AuthRepository
@@ -37,6 +39,7 @@ class AppDependencies : KoinComponent, CoreInjector, HomeInjector, AuthInjector,
     override fun getMainMenuViewModel(): MainMenuViewModel = get()
     override fun provideRouteNavigator(): RouteNavigator = get()
     override fun provideToastManager(): ToastManager = get()
+    override fun provideDeeplinkHandler(): DeepLinkHandler = get()
     override fun provideAuthService(): AuthService = get()
     override fun getBattleLobbyViewModel(): BattleLobbyViewModel = get()
     override fun getGameRoomViewModel(): GameRoomViewModel = get()

@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 interface AuthRepository {
     val sessionStatus: Flow<SessionStatus>
     suspend fun signIn()
-    suspend fun signInAsGuest(userId: String, displayName: String, token: String): RegisterServerResponse
+    suspend fun signInAsGuest(userId: String, displayName: String, token: String)
     suspend fun handleUserAuthenticated(): Result<User>
     suspend fun registerWithGameServer(registerServerRequest: RegisterServerRequest): RegisterServerResponse
     suspend fun restoreSession(): Result<User?>

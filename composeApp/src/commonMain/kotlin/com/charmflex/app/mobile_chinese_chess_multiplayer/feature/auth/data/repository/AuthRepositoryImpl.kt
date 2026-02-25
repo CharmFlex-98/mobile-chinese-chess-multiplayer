@@ -75,13 +75,14 @@ class AuthRepositoryImpl(
         return response
     }
 
-    override suspend fun signInAsGuest(userId: String, displayName: String, token: String): RegisterServerResponse {
-        val response: RegisterServerResponse = networkClient.usePost(
-            endPoint = "/api/auth/guest",
-            body = RegisterServerRequest(userId, displayName, token)
-        )
-
-        return response
+    override suspend fun signInAsGuest(userId: String, displayName: String, token: String) {
+        supabaseAuthClient.signInAsGuest()
+//        val response: RegisterServerResponse = networkClient.usePost(
+//            endPoint = "/api/auth/guest",
+//            body = RegisterServerRequest(userId, displayName, token)
+//        )
+//
+//        return response
     }
 
     override suspend fun restoreSession(): Result<User?> {
@@ -108,7 +109,7 @@ class AuthRepositoryImpl(
                 return Result.success(null)
             } else {
                 // Guest - re-login with a new guest session
-                signInAsGuest(userId = savedUser.id, displayName = savedUser.name, token = savedUser.token)
+//                signInAsGuest(userId = savedUser.id, displayName = savedUser.name, token = savedUser.token)
                 return Result.success(savedUser)
             }
         } catch (e : Exception) {

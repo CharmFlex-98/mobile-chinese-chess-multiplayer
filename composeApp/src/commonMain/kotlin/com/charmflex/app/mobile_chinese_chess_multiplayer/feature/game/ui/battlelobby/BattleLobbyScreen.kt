@@ -465,9 +465,9 @@ private fun MatchmakingRadarSection(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TimerBox(value = "%02d".format(minutes), label = "Minutes", modifier = Modifier.weight(1f))
+                TimerBox(value = minutes.toString().padStart(2, '0'), label = "Minutes", modifier = Modifier.weight(1f))
                 Text(":", style = AppTypography.headlineMedium, color = GoldPrimary)
-                TimerBox(value = "%02d".format(seconds), label = "Seconds", modifier = Modifier.weight(1f))
+                TimerBox(value = seconds.toString().padStart(2, '0'), label = "Seconds", modifier = Modifier.weight(1f))
             }
         }
 

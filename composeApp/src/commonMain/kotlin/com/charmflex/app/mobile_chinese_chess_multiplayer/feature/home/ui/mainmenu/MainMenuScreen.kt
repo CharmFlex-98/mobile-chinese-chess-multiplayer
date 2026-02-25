@@ -187,7 +187,7 @@ private fun ProfileHeader(
 private fun XPProgressBar(xp: Int = 0, level: Int = 1) {
     // XP required to go from level n to n+1: 100 + (n-1)*5
     val xpRequiredThisLevel = Player.xpToNextLevel(level)
-    val xpForCurrentLevel = if (level == 1) 0 else Player.xpToNextLevel(level - 1)
+    val xpForCurrentLevel = Player.cumulativeXpForLevel(level)
     val xpInCurrentLevel = xp - xpForCurrentLevel
     val progress = xpInCurrentLevel.toFloat() / xpRequiredThisLevel.toFloat()
     Column(

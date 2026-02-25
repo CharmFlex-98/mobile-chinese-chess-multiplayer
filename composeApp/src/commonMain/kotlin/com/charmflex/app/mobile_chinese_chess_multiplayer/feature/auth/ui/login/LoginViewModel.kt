@@ -97,8 +97,8 @@ class LoginViewModel(
             _state.update { it.copy(isLoading = true, error = null) }
             val guestId = Uuid.random().toString()
             try {
-                val response = authRepository.signInAsGuest(guestId, "", "")
-                routeNavigator.navigateAndPopUpTo(HomeRoute.ROOT, AuthRoute.Login)
+                authRepository.signInAsGuest(guestId, "", "")
+//                routeNavigator.navigateAndPopUpTo(HomeRoute.ROOT, AuthRoute.Login)
             } catch (e: Exception) {
                 _state.update {
                     it.copy(

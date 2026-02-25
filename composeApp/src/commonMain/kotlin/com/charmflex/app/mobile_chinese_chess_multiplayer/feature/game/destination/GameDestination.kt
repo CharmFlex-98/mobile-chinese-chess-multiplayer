@@ -47,7 +47,7 @@ class GameDestination : DestinationBuilder {
 
     private fun NavGraphBuilder.aiMatch() {
         composable<GameRoute.Match.Bot>(
-            typeMap = mapOf(typeOf<AiDifficulty?>() to customNavType<AiDifficulty>())
+            typeMap = mapOf(typeOf<AiDifficulty>() to customNavType<AiDifficulty>())
         ) {
             val gameRoomViewModel = remember { appDependencies.getGameRoomViewModel() }
             val route = it.toRoute<GameRoute.Match.Bot>()
@@ -66,7 +66,7 @@ class GameDestination : DestinationBuilder {
 
     private fun NavGraphBuilder.onlineMatch() {
         composable<GameRoute.Match.Online>(
-            typeMap = mapOf(typeOf<PieceColor?>() to customNavType<PieceColor>())
+            typeMap = mapOf(typeOf<PieceColor>() to customNavType<PieceColor>())
         ) {
             val gameRoomViewModel = remember { appDependencies.getGameRoomViewModel() }
             val route = it.toRoute<GameRoute.Match.Online>()
