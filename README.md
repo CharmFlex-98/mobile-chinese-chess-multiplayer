@@ -111,10 +111,7 @@ cp .env.properties.example .env.properties
 Open `.env.properties` and fill in your Supabase values:
 
 ```properties
-SUPABASE_ISSUER_URI=https://<your-project-ref>.supabase.co/auth/v1
 SUPABASE_JWK_SET_URI=https://<your-project-ref>.supabase.co/auth/v1/.well-known/jwks.json
-SUPABASE_DB_HOST=db.<your-project-ref>.supabase.co
-SUPABASE_DB_PASSWORD=<your-database-password>
 POSTGRES_HOST=db.<your-project-ref>.supabase.co
 POSTGRES_PASSWORD=<your-database-password>
 
@@ -164,23 +161,25 @@ Open:
 composeApp/src/commonMain/kotlin/com/charmflex/app/mobile_chinese_chess_multiplayer/feature/auth/constant/AuthConstant.kt
 ```
 
-Update the server URLs and Supabase credentials:
+Replace the placeholder values with your own:
 
 ```kotlin
 object AuthConstant {
-    // For Android Emulator talking to the host machine:
+    // Android Emulator → host machine:
     const val DEFAULT_HTTP_URL = "http://10.0.2.2:8080"
-    const val DEFAULT_WS_URL  = "ws://10.0.2.2:8080/ws"
+    const val DEFAULT_WS_URL   = "ws://10.0.2.2:8080/ws"
 
-    // For real devices or cross-device play, use your LAN IP instead:
+    // Real device / LAN:
     // const val DEFAULT_HTTP_URL = "http://192.168.1.100:8080"
-    // const val DEFAULT_WS_URL  = "ws://192.168.1.100:8080/ws"
+    // const val DEFAULT_WS_URL   = "ws://192.168.1.100:8080/ws"
 
-    // Your Supabase project URL and anon key
-    // (Supabase Dashboard → Project Settings → API → Project URL / anon public)
+    // Supabase Dashboard → Project Settings → API → Project URL / anon public
     const val SUPABASE_URL      = "https://<your-project-ref>.supabase.co"
     const val SUPABASE_ANON_KEY = "<your-supabase-anon-key>"
-    ...
+
+    // Deep link scheme for OAuth callback — keep as-is unless you change the app ID
+    const val DEEP_LINK_SCHEME = "com.charmflex.xiangqi"
+    const val DEEP_LINK_HOST   = "auth-callback"
 }
 ```
 
@@ -334,7 +333,7 @@ feature/
 | App hangs on "Waiting..." | Server not running | Run `./gradlew :server:bootRun` |
 | Emulator connects but real device doesn't | Using `10.0.2.2` | Change to your LAN IP |
 | Login fails / 401 errors | Supabase not configured | Check `SUPABASE_JWK_SET_URI` in `.env.properties` |
-| DB connection refused | Wrong DB host/password | Verify `SUPABASE_DB_HOST` and `SUPABASE_DB_PASSWORD` |
+| DB connection refused | Wrong DB host/password | Verify `POSTGRES_HOST` and `POSTGRES_PASSWORD` |
 | iOS build fails on KMP framework | Gradle or Xcode out of sync | Clean → `./gradlew clean` then rebuild in Xcode |
 
 **Server logs** (in the `bootRun` terminal) use structured prefixes:
