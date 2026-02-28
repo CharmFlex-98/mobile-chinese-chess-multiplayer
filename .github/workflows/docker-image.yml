@@ -10,6 +10,9 @@ jobs:
         with:
           lfs: true
 
+      - name: Pull LFS files
+        run: git lfs pull
+
       - name: Verify LFS file is real binary
         run: |
           file server/src/main/resources/static/downloads/xiangqi-online.apk
