@@ -30,7 +30,7 @@ A full-stack, cross-platform Xiangqi (Chinese Chess) app built with **Kotlin Mul
 |---|---|
 | Mobile (Android + iOS) | Kotlin Multiplatform, Compose Multiplatform |
 | Server | Spring Boot (Kotlin), WebSocket |
-| Database | PostgreSQL (via Supabase) |
+| Database | PostgreSQL (self-hosted) |
 | Auth | Supabase (Google OAuth + anonymous) |
 | DI | Koin + KSP |
 | Networking | Ktor (HTTP + WebSocket client) |
@@ -112,7 +112,7 @@ Open `.env.properties` and fill in your Supabase values:
 
 ```properties
 SUPABASE_JWK_SET_URI=https://<your-project-ref>.supabase.co/auth/v1/.well-known/jwks.json
-POSTGRES_HOST=db.<your-project-ref>.supabase.co
+POSTGRES_HOST=<your-postgres-host>     # e.g. "db" for Docker, or a remote hostname
 POSTGRES_PASSWORD=<your-database-password>
 
 # Leave blank to disable Discord notifications
@@ -284,7 +284,7 @@ sudo ufw allow 8080
 └──────────────┬──────────────────────────┘
                │ JPA / JDBC
 ┌──────────────▼──────────────────────────┐
-│      Supabase PostgreSQL (players)      │
+│        PostgreSQL (players)             │
 └─────────────────────────────────────────┘
 ```
 
