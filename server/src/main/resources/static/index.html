@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xiangqi Online — Chinese Chess Multiplayer</title>
+  <meta name="description" content="Open-source cross-platform Chinese Chess (Xiangqi) with live multiplayer, AI opponents, spectator mode, and global rankings. Built with Kotlin Multiplatform." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0D0606;
+      --bg2:       #160A0A;
+      --bg3:       #1F0E0E;
+      --gold:      #C9A227;
+      --gold2:     #E8C850;
+      --gold-dim:  rgba(201,162,39,0.10);
+      --gold-bdr:  rgba(201,162,39,0.20);
+      --purple:    #6B3FA0;
+      --purple-dim:rgba(107,63,160,0.15);
+      --purple-bdr:rgba(107,63,160,0.30);
+      --text:      #F0E8D5;
+      --muted:     #806050;
+      --radius:    14px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65;
+      overflow-x: hidden;
+    }
+
+    /* ─── NAVBAR ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 48px;
+      background: rgba(13,6,6,0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--gold-bdr);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text);
+      font-weight: 700; font-size: 1.05rem; letter-spacing: 0.3px;
+    }
+    .nav-emblem {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--gold); color: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-family: serif; font-size: 1.1rem; font-weight: 900;
+    }
+    .nav-links { display: flex; gap: 20px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color .2s; }
+    .nav-links a:hover { color: var(--gold); }
+    .btn-gh {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px;
+      border: 1px solid var(--gold-bdr); background: var(--gold-dim);
+      color: var(--gold); text-decoration: none; font-size: 0.88rem; font-weight: 600;
+      transition: all .2s;
+    }
+    .btn-gh:hover { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+
+    /* ─── HERO ─── */
+    .hero-wrap {
+      background: radial-gradient(ellipse 90% 55% at 50% 0%, rgba(201,162,39,0.07) 0%, transparent 65%);
+    }
+    .hero {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 60px; align-items: center;
+      padding: 130px 80px 90px;
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--purple-dim); border: 1px solid var(--purple-bdr);
+      color: #B080F0; padding: 5px 14px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; margin-bottom: 22px;
+    }
+    .hero h1 {
+      font-size: clamp(2.4rem, 4.5vw, 3.8rem);
+      font-weight: 800; line-height: 1.08; letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .hero h1 .hl { color: var(--gold); }
+    .hero p {
+      color: var(--muted); font-size: 1.05rem;
+      max-width: 460px; margin-bottom: 38px; line-height: 1.75;
+    }
+    .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--gold); color: var(--bg);
+      padding: 13px 26px; border-radius: 10px;
+      text-decoration: none; font-weight: 700; font-size: 0.93rem;
+      letter-spacing: 0.2px; transition: all .2s;
+    }
+    .btn-primary:hover {
+      background: var(--gold2); transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(201,162,39,0.28);
+    }
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      padding: 13px 26px; border-radius: 10px;
+      text-decoration: none; font-weight: 600; font-size: 0.93rem;
+      border: 1px solid var(--gold-bdr); transition: all .2s;
+    }
+    .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+
+    .board-wrap {
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .board-glow {
+      position: absolute; width: 380px; height: 380px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,162,39,0.07) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .board-svg { filter: drop-shadow(0 0 24px rgba(201,162,39,0.12)); }
+
+    /* ─── SECTION BASE ─── */
+    .section {
+      max-width: 1200px; margin: 0 auto; padding: 90px 48px;
+    }
+    .sec-label {
+      text-align: center; color: var(--gold);
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 2.5px;
+      text-transform: uppercase; margin-bottom: 10px;
+    }
+    .sec-title {
+      text-align: center;
+      font-size: clamp(1.7rem, 2.8vw, 2.6rem);
+      font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px;
+    }
+    .sec-sub {
+      text-align: center; color: var(--muted);
+      max-width: 520px; margin: 0 auto 54px; font-size: 0.98rem;
+    }
+
+    /* ─── FEATURES ─── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
+    }
+    .feat-card {
+      background: var(--bg2); border: 1px solid var(--gold-bdr);
+      border-radius: var(--radius); padding: 30px;
+      transition: all .25s;
+    }
+    .feat-card:hover {
+      border-color: var(--gold); transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(201,162,39,0.07);
+    }
+    .feat-icon {
+      width: 50px; height: 50px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 18px;
+    }
+    .feat-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 9px; }
+    .feat-card p { color: var(--muted); font-size: 0.92rem; line-height: 1.68; }
+
+    /* ─── SCREENSHOTS ─── */
+    .shots-wrap { padding: 90px 0; }
+    .shots-inner { max-width: 1200px; margin: 0 auto; padding: 0 48px; }
+    .phones-row {
+      display: flex; gap: 24px;
+      padding: 40px 48px; overflow-x: auto;
+      scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .phones-row::-webkit-scrollbar { display: none; }
+    .phone {
+      flex: 0 0 200px; height: 400px;
+      border: 2px solid var(--gold); border-radius: 28px;
+      overflow: hidden; position: relative; background: #000;
+      box-shadow: 0 0 0 1px rgba(201,162,39,0.08), 0 18px 48px rgba(0,0,0,0.55);
+      transition: transform .3s;
+    }
+    .phone:hover { transform: translateY(-8px) scale(1.02); }
+    .phone::after {
+      content: ''; position: absolute; top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 55px; height: 5px;
+      background: var(--gold); border-radius: 0 0 5px 5px;
+    }
+    .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .phone-lbl {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.82));
+      padding: 18px 10px 10px; font-size: 0.7rem; font-weight: 700;
+      color: var(--gold); text-align: center; letter-spacing: 1px;
+    }
+
+    /* ─── TECH STACK ─── */
+    .tech-bg {
+      background: var(--bg2);
+      border-top: 1px solid var(--gold-bdr);
+      border-bottom: 1px solid var(--gold-bdr);
+    }
+    .tech-pills {
+      display: flex; flex-wrap: wrap; gap: 14px;
+      justify-content: center; margin-top: 40px;
+    }
+    .pill {
+      background: var(--bg3); border: 1px solid var(--gold-bdr);
+      border-radius: 8px; padding: 9px 18px;
+      font-size: 0.85rem; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.2px; transition: all .2s; cursor: default;
+    }
+    .pill:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ─── GITHUB CTA ─── */
+    .cta-wrap {
+      text-align: center; padding: 90px 48px;
+      max-width: 680px; margin: 0 auto;
+    }
+    .cta-wrap h2 {
+      font-size: clamp(1.7rem, 2.8vw, 2.5rem);
+      font-weight: 800; margin-bottom: 16px;
+    }
+    .cta-wrap p { color: var(--muted); margin-bottom: 36px; font-size: 1rem; }
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--gold); color: var(--bg);
+      padding: 14px 30px; border-radius: 10px;
+      text-decoration: none; font-weight: 700; font-size: 0.95rem;
+      transition: all .2s;
+    }
+    .btn-cta:hover { background: var(--gold2); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,162,39,0.28); }
+
+    /* ─── FOOTER ─── */
+    footer {
+      background: var(--bg2); border-top: 1px solid var(--gold-bdr);
+      padding: 36px 48px; text-align: center;
+      color: var(--muted); font-size: 0.83rem; line-height: 1.8;
+    }
+    footer a { color: var(--gold); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 900px) {
+      nav { padding: 12px 20px; }
+      .nav-links a:not(.btn-gh) { display: none; }
+      .hero { grid-template-columns: 1fr; padding: 100px 24px 60px; gap: 36px; text-align: center; }
+      .hero p { margin-left: auto; margin-right: auto; }
+      .hero-cta { justify-content: center; }
+      .board-wrap { order: -1; }
+      .board-svg { width: 260px; height: auto; }
+      .board-glow { width: 280px; height: 280px; }
+      .section { padding: 60px 20px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .shots-inner { padding: 0 20px; }
+      .phones-row { padding: 30px 20px; }
+      .cta-wrap { padding: 60px 20px; }
+      footer { padding: 28px 20px; }
+    }
+
+    /* ─── ANIMATIONS ─── */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%       { opacity: 1;   transform: scale(1.04); }
+    }
+    .board-glow { animation: pulse-glow 4s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ NAVBAR ══════════ -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="nav-emblem">將</div>
+    Xiangqi Online
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="https://github.com/CharmFlex-98/mobile-chinese-chess-multiplayer" class="btn-gh" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 013-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0024 12C24 5.37 18.63 0 12 0z"/>
+      </svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ══════════ HERO ══════════ -->
+<div class="hero-wrap">
+  <div class="hero">
+    <div class="hero-text">
+      <div class="hero-eyebrow">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 013-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0024 12C24 5.37 18.63 0 12 0z"/></svg>
+        Open Source &nbsp;·&nbsp; Kotlin Multiplatform
+      </div>
+      <h1>Chinese Chess,<br><span class="hl">Reimagined</span><br>for Mobile.</h1>
+      <p>Battle players worldwide in real-time, train against AI at 8 difficulty levels, and climb the global leaderboard — crafted for Android &amp; iOS.</p>
+      <div class="hero-cta">
+        <a href="https://github.com/CharmFlex-98/mobile-chinese-chess-multiplayer" class="btn-primary" target="_blank" rel="noopener">View on GitHub</a>
+        <a href="#screenshots" class="btn-secondary">Screenshots ↓</a>
+      </div>
+    </div>
+
+    <!-- Xiangqi Board SVG -->
+    <div class="board-wrap">
+      <div class="board-glow"></div>
+      <svg class="board-svg" width="324" height="360" viewBox="0 0 324 360" xmlns="http://www.w3.org/2000/svg">
+        <rect width="324" height="360" fill="#180909" rx="14"/>
+
+        <!-- 10 horizontal lines -->
+        <g stroke="#C9A227" stroke-width="0.9" opacity="0.5">
+          <line x1="18" y1="18"  x2="306" y2="18"/>
+          <line x1="18" y1="54"  x2="306" y2="54"/>
+          <line x1="18" y1="90"  x2="306" y2="90"/>
+          <line x1="18" y1="126" x2="306" y2="126"/>
+          <line x1="18" y1="162" x2="306" y2="162"/>
+          <line x1="18" y1="198" x2="306" y2="198"/>
+          <line x1="18" y1="234" x2="306" y2="234"/>
+          <line x1="18" y1="270" x2="306" y2="270"/>
+          <line x1="18" y1="306" x2="306" y2="306"/>
+          <line x1="18" y1="342" x2="306" y2="342"/>
+        </g>
+
+        <!-- Outer vertical lines (full height) -->
+        <g stroke="#C9A227" stroke-width="0.9" opacity="0.5">
+          <line x1="18"  y1="18" x2="18"  y2="342"/>
+          <line x1="306" y1="18" x2="306" y2="342"/>
+        </g>
+
+        <!-- Inner vertical lines (break at river 162–198) -->
+        <g stroke="#C9A227" stroke-width="0.9" opacity="0.5">
+          <line x1="54"  y1="18" x2="54"  y2="162"/> <line x1="54"  y1="198" x2="54"  y2="342"/>
+          <line x1="90"  y1="18" x2="90"  y2="162"/> <line x1="90"  y1="198" x2="90"  y2="342"/>
+          <line x1="126" y1="18" x2="126" y2="162"/> <line x1="126" y1="198" x2="126" y2="342"/>
+          <line x1="162" y1="18" x2="162" y2="162"/> <line x1="162" y1="198" x2="162" y2="342"/>
+          <line x1="198" y1="18" x2="198" y2="162"/> <line x1="198" y1="198" x2="198" y2="342"/>
+          <line x1="234" y1="18" x2="234" y2="162"/> <line x1="234" y1="198" x2="234" y2="342"/>
+          <line x1="270" y1="18" x2="270" y2="162"/> <line x1="270" y1="198" x2="270" y2="342"/>
+        </g>
+
+        <!-- Palace diagonals (top) -->
+        <g stroke="#C9A227" stroke-width="0.9" opacity="0.4">
+          <line x1="126" y1="18" x2="198" y2="90"/>
+          <line x1="198" y1="18" x2="126" y2="90"/>
+        </g>
+
+        <!-- Palace diagonals (bottom) -->
+        <g stroke="#C9A227" stroke-width="0.9" opacity="0.4">
+          <line x1="126" y1="270" x2="198" y2="342"/>
+          <line x1="198" y1="270" x2="126" y2="342"/>
+        </g>
+
+        <!-- River text -->
+        <text x="74"  y="185" fill="#C9A227" font-size="13" opacity="0.4" font-family="serif" letter-spacing="3">楚河</text>
+        <text x="190" y="185" fill="#C9A227" font-size="13" opacity="0.4" font-family="serif" letter-spacing="3">漢界</text>
+
+        <!-- ── RED pieces (gold, bottom) ── -->
+        <!-- Rank 9 (y=342): 俥 傌 相 仕 帥 仕 相 傌 俥 -->
+        <g fill="#9A7010" stroke="#E8C850" stroke-width="1.5">
+          <circle cx="18"  cy="342" r="14"/> <circle cx="306" cy="342" r="14"/><!-- 俥 -->
+          <circle cx="54"  cy="342" r="14"/> <circle cx="270" cy="342" r="14"/><!-- 傌 -->
+          <circle cx="90"  cy="342" r="14"/> <circle cx="234" cy="342" r="14"/><!-- 相 -->
+          <circle cx="126" cy="342" r="14"/> <circle cx="198" cy="342" r="14"/><!-- 仕 -->
+        </g>
+        <!-- 帥 General (brighter gold) -->
+        <circle cx="162" cy="342" r="14" fill="#C9A227" stroke="#F0DC70" stroke-width="2"/>
+        <text x="162" y="347" text-anchor="middle" fill="#1A0808" font-size="12" font-family="serif" font-weight="bold">帥</text>
+
+        <g fill="#F0E8D5" font-size="12" font-family="serif" text-anchor="middle">
+          <text x="18"  y="347">俥</text> <text x="306" y="347">俥</text>
+          <text x="54"  y="347">傌</text> <text x="270" y="347">傌</text>
+          <text x="90"  y="347">相</text> <text x="234" y="347">相</text>
+          <text x="126" y="347">仕</text> <text x="198" y="347">仕</text>
+        </g>
+
+        <!-- Rank 7 (y=270): 炮 -->
+        <circle cx="54"  cy="270" r="14" fill="#9A7010" stroke="#E8C850" stroke-width="1.5"/>
+        <circle cx="270" cy="270" r="14" fill="#9A7010" stroke="#E8C850" stroke-width="1.5"/>
+        <text x="54"  y="275" text-anchor="middle" fill="#F0E8D5" font-size="12" font-family="serif">炮</text>
+        <text x="270" y="275" text-anchor="middle" fill="#F0E8D5" font-size="12" font-family="serif">炮</text>
+
+        <!-- Rank 6 (y=234): 兵 -->
+        <g fill="#9A7010" stroke="#E8C850" stroke-width="1.5">
+          <circle cx="18"  cy="234" r="13"/>
+          <circle cx="90"  cy="234" r="13"/>
+          <circle cx="162" cy="234" r="13"/>
+          <circle cx="234" cy="234" r="13"/>
+          <circle cx="306" cy="234" r="13"/>
+        </g>
+        <g fill="#F0E8D5" font-size="11" font-family="serif" text-anchor="middle">
+          <text x="18"  y="239">兵</text>
+          <text x="90"  y="239">兵</text>
+          <text x="162" y="239">兵</text>
+          <text x="234" y="239">兵</text>
+          <text x="306" y="239">兵</text>
+        </g>
+
+        <!-- ── BLACK pieces (dark, top) ── -->
+        <!-- Rank 0 (y=18): 車 馬 象 士 將 士 象 馬 車 -->
+        <g fill="#2A1010" stroke="#707070" stroke-width="1.5">
+          <circle cx="18"  cy="18" r="14"/> <circle cx="306" cy="18" r="14"/><!-- 車 -->
+          <circle cx="54"  cy="18" r="14"/> <circle cx="270" cy="18" r="14"/><!-- 馬 -->
+          <circle cx="90"  cy="18" r="14"/> <circle cx="234" cy="18" r="14"/><!-- 象 -->
+          <circle cx="126" cy="18" r="14"/> <circle cx="198" cy="18" r="14"/><!-- 士 -->
+        </g>
+        <!-- 將 General -->
+        <circle cx="162" cy="18" r="14" fill="#3A1212" stroke="#909090" stroke-width="2"/>
+        <text x="162" y="23" text-anchor="middle" fill="#E8E8E8" font-size="12" font-family="serif" font-weight="bold">將</text>
+
+        <g fill="#D8D8D8" font-size="12" font-family="serif" text-anchor="middle">
+          <text x="18"  y="23">車</text> <text x="306" y="23">車</text>
+          <text x="54"  y="23">馬</text> <text x="270" y="23">馬</text>
+          <text x="90"  y="23">象</text> <text x="234" y="23">象</text>
+          <text x="126" y="23">士</text> <text x="198" y="23">士</text>
+        </g>
+
+        <!-- Rank 2 (y=90): 砲 -->
+        <circle cx="54"  cy="90" r="14" fill="#2A1010" stroke="#707070" stroke-width="1.5"/>
+        <circle cx="270" cy="90" r="14" fill="#2A1010" stroke="#707070" stroke-width="1.5"/>
+        <text x="54"  y="95" text-anchor="middle" fill="#D8D8D8" font-size="12" font-family="serif">砲</text>
+        <text x="270" y="95" text-anchor="middle" fill="#D8D8D8" font-size="12" font-family="serif">砲</text>
+
+        <!-- Rank 3 (y=126): 卒 -->
+        <g fill="#2A1010" stroke="#707070" stroke-width="1.5">
+          <circle cx="18"  cy="126" r="13"/>
+          <circle cx="90"  cy="126" r="13"/>
+          <circle cx="162" cy="126" r="13"/>
+          <circle cx="234" cy="126" r="13"/>
+          <circle cx="306" cy="126" r="13"/>
+        </g>
+        <g fill="#D8D8D8" font-size="11" font-family="serif" text-anchor="middle">
+          <text x="18"  y="131">卒</text>
+          <text x="90"  y="131">卒</text>
+          <text x="162" y="131">卒</text>
+          <text x="234" y="131">卒</text>
+          <text x="306" y="131">卒</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ FEATURES ══════════ -->
+<section class="section" id="features">
+  <p class="sec-label">What You Get</p>
+  <h2 class="sec-title">Everything a Chess Master Needs</h2>
+  <p class="sec-sub">From casual games to serious competition — every feature built with care.</p>
+  <div class="features-grid">
+    <div class="feat-card">
+      <div class="feat-icon" style="background:var(--gold-dim);">⚔️</div>
+      <h3>Online Multiplayer</h3>
+      <p>Jump into live matchmaking and face real players worldwide. Skill-based pairing ensures competitive, balanced matches. Create private rooms or join open games.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon" style="background:var(--purple-dim);">🤖</div>
+      <h3>AI Practice</h3>
+      <p>Train against 8 difficulty levels — from beginner-friendly to grandmaster-level challenge. Master openings, sharpen tactics, and refine endgame technique at your own pace.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon" style="background:var(--purple-dim);">👁️</div>
+      <h3>Spectator Mode</h3>
+      <p>Watch live games unfold in real-time. Join any public room as a spectator, follow exciting matches, and chat with the community — no board required.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon" style="background:var(--gold-dim);">🏆</div>
+      <h3>XP &amp; Global Rankings</h3>
+      <p>Earn experience points with every game. Level up, track your progress with a visual XP bar, and climb the global leaderboard to prove your mastery.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ SCREENSHOTS ══════════ -->
+<section class="shots-wrap" id="screenshots">
+  <div class="shots-inner">
+    <p class="sec-label">In Action</p>
+    <h2 class="sec-title">See It for Yourself</h2>
+    <p class="sec-sub">Beautifully crafted for Android and iOS using Compose Multiplatform.</p>
+  </div>
+  <div class="phones-row">
+    <div class="phone">
+      <img src="/screenshots/home.jpeg" alt="Home screen showing profile, level progress, and game modes" loading="lazy"/>
+      <div class="phone-lbl">HOME</div>
+    </div>
+    <div class="phone">
+      <img src="/screenshots/lobby.jpeg" alt="Battle lobby with active rooms and Find Match button" loading="lazy"/>
+      <div class="phone-lbl">BATTLE LOBBY</div>
+    </div>
+    <div class="phone">
+      <img src="/screenshots/game.jpeg" alt="Live Xiangqi game board in spectator mode" loading="lazy"/>
+      <div class="phone-lbl">LIVE GAME</div>
+    </div>
+    <div class="phone">
+      <img src="/screenshots/matchmaking.jpeg" alt="Matchmaking screen searching for opponent" loading="lazy"/>
+      <div class="phone-lbl">MATCHMAKING</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ TECH STACK ══════════ -->
+<div class="tech-bg">
+  <div class="section" style="padding-top:70px;padding-bottom:70px;">
+    <p class="sec-label">Built With</p>
+    <h2 class="sec-title">Modern Kotlin Multiplatform Stack</h2>
+    <p class="sec-sub">One shared codebase — business logic, UI, and networking — running natively on Android and iOS.</p>
+    <div class="tech-pills">
+      <div class="pill">Kotlin Multiplatform</div>
+      <div class="pill">Compose Multiplatform</div>
+      <div class="pill">Spring Boot</div>
+      <div class="pill">Ktor WebSocket</div>
+      <div class="pill">Supabase Auth</div>
+      <div class="pill">Koin DI</div>
+      <div class="pill">kotlinx.serialization</div>
+      <div class="pill">PostgreSQL</div>
+      <div class="pill">Google OAuth</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ GITHUB CTA ══════════ -->
+<div class="cta-wrap">
+  <p class="sec-label">Open Source</p>
+  <h2>Star It. Fork It.<br>Make It Yours.</h2>
+  <p>The entire project — mobile client, game engine, and server — is open source and on GitHub. Pull requests and feedback are always welcome.</p>
+  <a href="https://github.com/CharmFlex-98/mobile-chinese-chess-multiplayer" class="btn-cta" target="_blank" rel="noopener">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 013-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0024 12C24 5.37 18.63 0 12 0z"/>
+    </svg>
+    View on GitHub
+  </a>
+</div>
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer>
+  <p>Built with Kotlin Multiplatform &nbsp;·&nbsp; Open Source on <a href="https://github.com/CharmFlex-98/XiangQi-Mobile" target="_blank" rel="noopener">GitHub</a></p>
+  <p style="margin-top:6px;font-size:0.78rem;opacity:0.6;">象棋 · Xiangqi · Chinese Chess</p>
+</footer>
+
+</body>
+</html>
