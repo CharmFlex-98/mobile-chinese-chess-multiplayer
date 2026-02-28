@@ -10,6 +10,12 @@ jobs:
         with:
           lfs: true
 
+      - name: Verify LFS file is real binary
+        run: |
+          file server/src/main/resources/static/downloads/xiangqi-online.apk
+          head -1 server/src/main/resources/static/downloads/xiangqi-online.apk
+
+
       - name: send docker-compose.yml to server
         uses: appleboy/scp-action@v0.1.7
         with:
