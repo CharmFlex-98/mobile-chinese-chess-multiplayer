@@ -11,6 +11,13 @@ jobs:
           lfs: true
           fetch-depth: 0    # fetch full history (needed for LFS)
 
+
+      - name: Fetch and checkout LFS files
+        run: |
+          git lfs install
+          git lfs fetch --all
+          git lfs checkout
+
       - name: Verify LFS file is real binary
         run: |
           file server/src/main/resources/static/downloads/xiangqi-online.apk
