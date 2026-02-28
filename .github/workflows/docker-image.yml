@@ -9,9 +9,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           lfs: true
-
-      - name: Pull LFS files
-        run: git lfs pull
+          fetch-depth: 0    # fetch full history (needed for LFS)
 
       - name: Verify LFS file is real binary
         run: |
